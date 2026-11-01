@@ -12,6 +12,7 @@ interface WaterMeterModuleProps {
   selectedFlat: number;
   onSaveStatement: (statement: WaterStatement) => boolean;
   onOpenSettings?: () => void;
+  onOpenCycle?: (month: string) => void;
 }
 
 export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
@@ -21,7 +22,8 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   cycleStatus = 'legacy-closed',
   selectedFlat,
   onSaveStatement,
-  onOpenSettings
+  onOpenSettings,
+  onOpenCycle
 }) => {
   // Never substitute another month's statement when the selected month is missing.
   const matchingStatements = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
@@ -144,7 +146,33 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
 
   return (
     <div className="space-y-6">
-      {cycleStatus !== 'open' && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">This cycle is {cycleStatus === 'initialization-required' ? 'pending explicit initialization by an administrator' : cycleStatus === 'legacy-closed' ? 'legacy closed and locked' : cycleStatus || 'not open'}; meter readings are view-only.</div>}
+      {cycleStatus !== 'open' && (
+        <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
+          <div>
+            <span className="font-bold block">
+              {cycleStatus === 'initialization-required'
+                ? 'This cycle is awaiting admin activation.'
+                : cycleStatus === 'legacy-closed'
+                ? 'This cycle is locked as historical legacy data.'
+                : `This cycle is currently ${cycleStatus}.`}
+            </span>
+            <span className="text-xs text-amber-800">
+              {currentRole === 'admin'
+                ? 'Click the button on the right to open this cycle and enable editing meter readings and bills.'
+                : 'Meter readings and financial entries are currently in read-only mode.'}
+            </span>
+          </div>
+
+          {currentRole === 'admin' && onOpenCycle && (
+            <button
+              onClick={() => onOpenCycle(selectedMonth)}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm whitespace-nowrap active:scale-95 transition-all"
+            >
+              🚀 Open Cycle & Enable Editing
+            </button>
+          )}
+        </div>
+      )}
       {matchingStatements.length > 1 && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">Duplicate water statements were found for this calendar month; editing is disabled until duplicates are reconciled.</div>}
       {/* Title & Actions Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

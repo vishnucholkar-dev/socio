@@ -177,6 +177,7 @@ export const App: React.FC = () => {
             onSaveStatement={handleSaveWaterStatement}
             cycleStatus={selectedCycleStatus}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenCycle={handleOpenCycle}
           />
         )}
 
@@ -210,6 +211,7 @@ export const App: React.FC = () => {
             onDeleteTransfer={handleDeleteTransfer}
             cycleStatus={selectedCycleStatus}
             openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
+            onOpenCycle={handleOpenCycle}
           />
         )}
 
