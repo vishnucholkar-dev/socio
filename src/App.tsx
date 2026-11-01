@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, ApartmentData, WaterStatement, DirectoryContact, ExpenseItem, InflowItem, BillingConfigEntry, BalanceTransfer, PaymentChannel } from './types/apartment';
+import { UserRole, ApartmentData, WaterStatement, DirectoryContact, ExpenseItem, InflowItem, BillingConfigEntry, BalanceTransfer, PaymentChannel, AuthSession } from './types/apartment';
 import {
   getApartmentData,
   recordFlatPayment,
@@ -16,6 +16,7 @@ import {
   closeCycle,
   openNextCycle,
   reopenCycle,
+  openCycle,
   initializeCycle,
   nextMonthLabel,
   monthSortKey,
@@ -35,12 +36,18 @@ import { YearlyStatement } from './components/YearlyStatement';
 import { DirectoryModule } from './components/DirectoryModule';
 import { SettingsModal } from './components/SettingsModal';
 import { CycleManagement } from './components/CycleManagement';
+import { LoginModal } from './components/LoginModal';
+import { ResidentHistory } from './components/ResidentHistory';
+import { getStoredSession, clearSession } from './services/auth';
 
 export const App: React.FC = () => {
   const [data, setData] = useState<ApartmentData>(() => getApartmentData());
-  const [currentRole, setRole] = useState<UserRole>('admin');
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [selectedFlat, setSelectedFlat] = useState<number>(101);
+  const [session, setSession] = useState<AuthSession | null>(() => getStoredSession());
+  const [isLoginOpen, setIsLoginOpen] = useState(() => !getStoredSession());
+
+  const currentRole = session?.role || 'user';
+  const selectedFlat = session?.flatNumber || 101;
+  const [activeTab, setActiveTab] = useState<string>(() => session?.role === 'admin' ? 'dashboard' : 'my-flat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -68,8 +75,8 @@ export const App: React.FC = () => {
     catch (error) { setActionError(error instanceof Error ? error.message : 'The operation could not be saved.'); return false; }
   };
 
-  const handleRecordPayment = (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string) =>
-    runAction(() => recordFlatPayment(monthSheet, flatNumber, paidAmount, mode, notes));
+  const handleRecordPayment = (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string) =>
+    runAction(() => recordFlatPayment(monthSheet, flatNumber, paidAmount, mode, notes, date));
 
   const handleAddExpense = (monthSheet: string, expense: ExpenseItem) => runAction(() => addExpense(monthSheet, expense));
   const handleUpdateExpense = (month: string, id: string, expense: ExpenseItem) => runAction(() => updateExpense(month, id, expense));
@@ -85,6 +92,7 @@ export const App: React.FC = () => {
   const handleCloseCycle = (month: string, note: string) => runAction(() => closeCycle(month, note));
   const handleOpenNext = (month: string) => runAction(() => openNextCycle(month));
   const handleReopenCycle = (month: string, reason: string) => runAction(() => reopenCycle(month, reason));
+  const handleOpenCycle = (month: string, reason?: string) => runAction(() => openCycle(month, reason));
   const handleInitializeCycle = (month: string, targetStatus: 'open' | 'closed' | 'legacy-closed', reason: string) => runAction(() => initializeCycle(month, targetStatus, reason));
 
   const handleSaveContact = (contact: DirectoryContact) => runAction(() => saveContact(contact));
@@ -97,7 +105,16 @@ export const App: React.FC = () => {
       {/* Navbar with Role Switcher & Navigation Tabs */}
       <Navbar
         currentRole={currentRole}
-        setRole={setRole}
+        setRole={(newRole) => {
+          const updated: AuthSession = {
+            role: newRole,
+            flatNumber: newRole === 'user' ? selectedFlat : undefined,
+            username: newRole === 'admin' ? 'Administrator' : newRole === 'watchman' ? 'Watchman' : `Flat ${selectedFlat} Owner`,
+            loggedInAt: new Date().toISOString()
+          };
+          setSession(updated);
+          setActiveTab(newRole === 'admin' ? 'dashboard' : newRole === 'watchman' ? 'water-meter' : 'my-flat');
+        }}
         selectedMonth={selectedMonth}
         setSelectedMonth={setSelectedMonth}
         availableMonths={availableMonths}
@@ -105,15 +122,25 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         selectedFlat={selectedFlat}
-        setSelectedFlat={setSelectedFlat}
+        setSelectedFlat={(f) => {
+          if (session) {
+            const updated = { ...session, flatNumber: f };
+            setSession(updated);
+          }
+        }}
         flatsList={data.flats}
+        onLogout={() => {
+          clearSession();
+          setSession(null);
+          setIsLoginOpen(true);
+        }}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {actionError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 whitespace-pre-wrap">{actionError}<button className="float-right font-bold" onClick={() => setActionError(null)} aria-label="Dismiss error">×</button></div>}
         {activeTab === 'cycle-management' && (
-          <CycleManagement data={data} month={selectedMonth} isAdmin={currentRole === 'admin'} onCloseCycle={handleCloseCycle} onOpenNext={(month) => { try { const updated = openNextCycle(month); setData({ ...updated }); setActionError(null); setSelectedMonth(nextMonthLabel(month)); } catch (error) { setActionError(error instanceof Error ? error.message : 'The operation could not be saved.'); } }} onReopen={handleReopenCycle} onInitializeCycle={handleInitializeCycle} />
+          <CycleManagement data={data} month={selectedMonth} isAdmin={currentRole === 'admin'} onCloseCycle={handleCloseCycle} onOpenNext={(month) => { try { const updated = openNextCycle(month); setData({ ...updated }); setActionError(null); setSelectedMonth(nextMonthLabel(month)); } catch (error) { setActionError(error instanceof Error ? error.message : 'The operation could not be saved.'); } }} onReopen={handleReopenCycle} onOpenCycle={handleOpenCycle} onInitializeCycle={handleInitializeCycle} />
         )}
         {activeTab === 'dashboard' && (
           <DashboardModule
@@ -146,6 +173,7 @@ export const App: React.FC = () => {
             selectedFlat={selectedFlat}
             onRecordPayment={handleRecordPayment}
             cycleStatus={selectedCycleStatus}
+            openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
           />
         )}
 
@@ -164,16 +192,34 @@ export const App: React.FC = () => {
             onUpdateTransfer={handleUpdateTransfer}
             onDeleteTransfer={handleDeleteTransfer}
             cycleStatus={selectedCycleStatus}
+            openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
+          />
+        )}
+
+        {activeTab === 'resident-history' && (
+          <ResidentHistory
+            selectedFlat={selectedFlat}
+            allMaintenanceStatements={data.maintenance_statements}
           />
         )}
 
         {activeTab === 'monthly-statement' && (
-          <MonthlyStatement
-            selectedMonth={selectedMonth}
-            allMaintenanceStatements={data.maintenance_statements}
-            allWaterStatements={data.water_statements}
-            onSelectMonth={setSelectedMonth}
-          />
+          <div className="space-y-8">
+            <MonthlyStatement
+              selectedMonth={selectedMonth}
+              allMaintenanceStatements={data.maintenance_statements}
+              allWaterStatements={data.water_statements}
+              onSelectMonth={setSelectedMonth}
+            />
+            {currentRole === 'user' && (
+              <div className="pt-6 border-t border-slate-200">
+                <YearlyStatement
+                  maintenanceStatements={data.maintenance_statements}
+                  waterStatements={data.water_statements}
+                />
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'yearly-statement' && (
@@ -192,6 +238,17 @@ export const App: React.FC = () => {
           />
         )}
       </main>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={isLoginOpen}
+        onLoginSuccess={(newSession) => {
+          setSession(newSession);
+          setIsLoginOpen(false);
+          setActiveTab(newSession.role === 'admin' ? 'dashboard' : newSession.role === 'watchman' ? 'water-meter' : 'my-flat');
+        }}
+        flatsList={data.flats}
+      />
 
       {/* Settings Modal (Mandatory Maintenance & Common Utilization Configuration with History) */}
       <SettingsModal

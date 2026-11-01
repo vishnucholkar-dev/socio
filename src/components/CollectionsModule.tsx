@@ -10,8 +10,26 @@ interface CollectionsModuleProps {
   allMaintenanceStatements: MaintenanceStatement[];
   allWaterStatements: WaterStatement[];
   selectedFlat: number;
-  onRecordPayment: (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string) => boolean;
+  onRecordPayment: (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string) => boolean;
   cycleStatus?: CycleStatus;
+  openCycles?: string[];
+}
+
+function getFirstOfMonth(monthLabel: string): string {
+  const d = new Date(`${monthLabel} 1 UTC`);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
+function getLastOfMonth(monthLabel: string): string {
+  const d = new Date(`${monthLabel} 1 UTC`);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 }
 
 export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
@@ -21,7 +39,8 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   allWaterStatements,
   selectedFlat,
   onRecordPayment,
-  cycleStatus = 'legacy-closed'
+  cycleStatus = 'legacy-closed',
+  openCycles
 }) => {
   const matchingStatements = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentStatement = matchingStatements.length === 1 ? matchingStatements[0] : undefined;
@@ -35,6 +54,8 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
 
   // Payment Recording Modal State
   const [activePaymentFlat, setActivePaymentFlat] = useState<FlatMaintenanceData | null>(null);
+  const [paymentCycle, setPaymentCycle] = useState<string>(selectedMonth);
+  const [paymentDate, setPaymentDate] = useState<string>(() => getFirstOfMonth(selectedMonth));
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMode, setPayMode] = useState<PaymentChannel>('Online');
   const [payNotes, setPayNotes] = useState<string>('');
@@ -70,15 +91,32 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
 
   const handleOpenPayment = (flat: FlatMaintenanceData) => {
     setActivePaymentFlat(flat);
+    const initialCycle = (openCycles && openCycles.includes(selectedMonth)) ? selectedMonth : (openCycles?.[0] || selectedMonth);
+    setPaymentCycle(initialCycle);
+    setPaymentDate(getFirstOfMonth(initialCycle));
     setPayAmount(flat.pending > 0 ? flat.pending : 0);
     setPayMode(flat.mode === 'Due' ? 'Online' : flat.mode);
     setPayNotes(flat.notes || '');
   };
 
+  const handlePaymentCycleChange = (newCycle: string) => {
+    setPaymentCycle(newCycle);
+    setPaymentDate(getFirstOfMonth(newCycle));
+    if (activePaymentFlat) {
+      const targetStatement = allMaintenanceStatements.find(m => sameCalendarMonth(m.sheet_name, newCycle));
+      const targetFlat = targetStatement?.flats.find(f => f.flat === activePaymentFlat.flat);
+      if (targetFlat) {
+        setPayAmount(targetFlat.pending > 0 ? targetFlat.pending : 0);
+      }
+    }
+  };
+
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activePaymentFlat || !canEdit) return;
-    if (onRecordPayment(currentStatement.sheet_name, activePaymentFlat.flat, payAmount, payMode, payNotes)) setActivePaymentFlat(null);
+    if (onRecordPayment(paymentCycle, activePaymentFlat.flat, payAmount, payMode, payNotes, paymentDate)) {
+      setActivePaymentFlat(null);
+    }
   };
 
   return (
@@ -277,6 +315,32 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
             </p>
 
             <form onSubmit={handleSubmitPayment} className="mt-4 space-y-4">
+              {openCycles && openCycles.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Billing Cycle</label>
+                  <select
+                    value={paymentCycle}
+                    onChange={(e) => handlePaymentCycleChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                  >
+                    {openCycles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Date</label>
+                <input
+                  type="date"
+                  min={getFirstOfMonth(paymentCycle)}
+                  max={getLastOfMonth(paymentCycle)}
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Amount (₹)</label>
                 <input

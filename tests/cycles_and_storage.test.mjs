@@ -483,6 +483,61 @@ runTest('Water billing calculation formula correctly distributes costs and adds 
   assert.strictEqual(f101.total_payable, 13900); // 13400 + 500 pending
 });
 
+// 12. MULTI-CYCLE CONCURRENCY & DATE ROUTING
+runTest('Multiple cycles can be open concurrently and route transactions with date enforcement', () => {
+  const initial = storage.getApartmentData();
+  const months = Object.keys(initial.cycles);
+  const nov2026 = 'November 2026';
+  const oct2026 = 'October 2026';
+
+  storage.initializeCycle(nov2026, 'open', 'Initialize Nov');
+  storage.openCycle(oct2026, 'Concurrently open Oct');
+
+  const afterOpen = storage.getApartmentData();
+  assert.strictEqual(afterOpen.cycles[nov2026].status, 'open');
+  assert.strictEqual(afterOpen.cycles[oct2026].status, 'open');
+
+  // Add Inflow to October 2026 with October date
+  storage.addInflow(oct2026, {
+    description: 'October Vendor Ad Banner',
+    amount: 3000,
+    type: 'Bank',
+    category: 'Vendor Ad Rent (Lift / Gate Displays)',
+    date: '2026-10-01'
+  });
+
+  // Add Expense to November 2026 with November date
+  storage.addExpense(nov2026, {
+    description: 'November Sump Cleaner Salary',
+    amount: 1500,
+    type: 'Cash',
+    category: 'Staff Salary (Laxman)',
+    date: '2026-11-01'
+  });
+
+  const checkData = storage.getApartmentData();
+  const octMaint = checkData.maintenance_statements.find(s => s.sheet_name === oct2026);
+  const novMaint = checkData.maintenance_statements.find(s => s.sheet_name === nov2026);
+
+  assert(octMaint.inflows.some(i => i.description === 'October Vendor Ad Banner' && i.category === 'Vendor Ad Rent (Lift / Gate Displays)'));
+  assert(novMaint.expenses.some(e => e.description === 'November Sump Cleaner Salary' && e.category === 'Staff Salary (Laxman)'));
+
+  // Dates outside the target cycle are rejected
+  assert.throws(() => {
+    storage.addInflow(oct2026, {
+      description: 'Misdated Inflow',
+      amount: 1000,
+      type: 'Bank',
+      date: '2026-11-15'
+    });
+  }, /Transaction date.*does not belong to October 2026/);
+
+  // Flat payment routed to October with October date
+  storage.recordFlatPayment(oct2026, 101, 1000, 'Online', 'October Part Payment', '2026-10-01');
+  const octFlat101 = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === oct2026).flats.find(f => f.flat === 101);
+  assert(octFlat101.receipts.some(r => r.amount === 1000 && r.date === '2026-10-01'));
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

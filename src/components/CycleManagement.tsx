@@ -10,6 +10,7 @@ interface Props {
   onCloseCycle: (month: string, note: string) => void;
   onOpenNext: (month: string) => void;
   onReopen: (month: string, reason: string) => void;
+  onOpenCycle?: (month: string, reason?: string) => void;
   onInitializeCycle?: (month: string, targetStatus: 'open' | 'closed' | 'legacy-closed', reason: string) => void;
 }
 
@@ -33,7 +34,7 @@ function balanceReview(statement?: MaintenanceStatement) {
   return { cash: calc('Cash'), bank: calc('Bank'), recordedCash: statement.cash_balance, recordedBank: statement.bank_balance };
 }
 
-export const CycleManagement: React.FC<Props> = ({ data, month, isAdmin, onCloseCycle, onOpenNext, onReopen, onInitializeCycle }) => {
+export const CycleManagement: React.FC<Props> = ({ data, month, isAdmin, onCloseCycle, onOpenNext, onReopen, onOpenCycle, onInitializeCycle }) => {
   const [reason, setReason] = useState('');
   const [message, setMessage] = useState('');
   const cycleLabel = Object.keys(data.cycles || {}).find(label => sameCalendarMonth(label, month));
@@ -77,8 +78,11 @@ export const CycleManagement: React.FC<Props> = ({ data, month, isAdmin, onClose
               <button onClick={() => perform(() => onInitializeCycle(month, 'legacy-closed', reason))} className="px-4 py-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold">Lock as Legacy Closed</button>
             </>}
             {cycle?.status === 'open' && <button onClick={() => perform(() => onCloseCycle(month, reason))} className="px-4 py-2 rounded-lg bg-rose-600 text-white text-sm font-semibold">Close & lock month</button>}
-            {cycle?.status === 'closed' && cycleLabel === latestMonth && <button disabled={hasAnotherOpen} onClick={() => perform(() => onReopen(month, reason))} className="px-4 py-2 rounded-lg bg-amber-600 disabled:bg-slate-300 text-white text-sm font-semibold" title={hasAnotherOpen ? 'Close the currently open month first.' : ''}>Reopen with reason</button>}
-            {cycle?.status === 'closed' && cycleLabel === latestMonth && <button disabled={hasAnotherOpen} onClick={() => perform(() => onOpenNext(month))} className="px-4 py-2 rounded-lg bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold">Open next month</button>}
+            {cycle?.status !== 'open' && onOpenCycle && (
+              <button onClick={() => perform(() => onOpenCycle(month, reason || `Opened ${month} for concurrent entries`))} className="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold">Open {month}</button>
+            )}
+            {cycle?.status === 'closed' && cycleLabel === latestMonth && <button onClick={() => perform(() => onReopen(month, reason))} className="px-4 py-2 rounded-lg bg-amber-600 disabled:bg-slate-300 text-white text-sm font-semibold">Reopen with reason</button>}
+            {cycle?.status === 'closed' && cycleLabel === latestMonth && <button onClick={() => perform(() => onOpenNext(month))} className="px-4 py-2 rounded-lg bg-blue-600 disabled:bg-slate-300 text-white text-sm font-semibold">Open next month</button>}
           </div>}
         </div>
         {isAdmin && <div className="mt-4 max-w-2xl">

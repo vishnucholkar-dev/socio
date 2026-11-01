@@ -14,6 +14,11 @@ const now = () => new Date().toISOString();
 const makeId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 function monthDate(label: string): Date | null {
+  const isoMatch = label.match(/^(\d{4})-(\d{2})(?:-\d{2})?$/);
+  if (isoMatch) {
+    const parsed = new Date(Date.UTC(Number(isoMatch[1]), Number(isoMatch[2]) - 1, 1));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
   const match = label.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b.*?\b(\d{4})\b/i);
   if (!match) return null;
   const parsed = new Date(`${match[1]} 1, ${match[2]} 00:00:00 UTC`);
@@ -83,11 +88,6 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
   data.cycles = normalizedCycles;
   if (!hadCycleMap) changed = true;
   const latest = labels[labels.length - 1];
-  const present = new Set(labels);
-  const cycleEntries = Object.entries(data.cycles);
-  const openEntries = cycleEntries.filter(([, state]) => state.status === 'open');
-  if (openEntries.length > 1) throw new Error('Multiple cycles are marked open. Existing browser data was preserved; resolve cycle status before continuing.');
-  if (openEntries.length === 1 && present.has(openEntries[0][0]) && openEntries[0][0] !== latest) throw new Error('An earlier cycle is open while later statement data exists. Existing browser data was preserved; reconcile cycle ordering before continuing.');
   for (const label of labels) {
     if (!data.cycles[label]) {
       const isLegacy = label !== latest;
@@ -240,9 +240,19 @@ function changeBalance(m: MaintenanceStatement, channel: 'Cash' | 'Bank', inflow
   m.total_balance = money((m.cash_balance || 0) + (m.bank_balance || 0));
 }
 
-export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string): ApartmentData {
+function assertDateInCycle(dateStr: string | undefined, monthSheet: string): void {
+  if (!dateStr || !dateStr.trim()) return;
+  const targetLabel = canonicalMonthLabel(monthSheet);
+  const dateLabel = canonicalMonthLabel(dateStr);
+  if (dateLabel && targetLabel && dateLabel !== targetLabel) {
+    throw new Error(`Transaction date (${dateStr}) does not belong to ${monthSheet}. Dates from other cycles are not allowed.`);
+  }
+}
+
+export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string): ApartmentData {
   const data = getApartmentData();
   assertCycleOpen(data, monthSheet);
+  assertDateInCycle(date, monthSheet);
   if (typeof mode !== 'string' || (mode !== 'Cash' && mode !== 'Online' && mode !== 'Bank')) throw new Error('Choose Cash, Online, or Bank for the payment channel.');
   if (typeof flatNumber !== 'number' || !Number.isFinite(flatNumber) || !Number.isFinite(paidAmount) || paidAmount < 0) throw new Error('Flat number and payment must be valid; payment must be non-negative.');
   const m = getMaintenance(data, monthSheet);
@@ -253,20 +263,19 @@ export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAm
   const currentPending = money(flat.pending ?? Math.max(0, payable - currentPaid));
   if (paidAmount > currentPending + 0.01) throw new Error('Payment cannot exceed the flat’s outstanding balance.');
   const before = { ...flat };
-  // Legacy rows have only an aggregate paid amount/channel. Preserve it as a channel allocation
-  // without inventing an old receipt date, then append this newly recorded incremental receipt.
   const receipts = flat.receipts ? [...flat.receipts] : currentPaid > 0
     ? [{ id: makeId('legacy-receipt'), amount: currentPaid, mode: (flat.mode === 'Cash' ? 'Cash' : flat.mode === 'Bank' ? 'Bank' : 'Online') as PaymentChannel }]
     : [];
   const newChannel: 'Cash' | 'Bank' | null = paidAmount === 0 ? null : mode === 'Cash' ? 'Cash' : 'Bank';
   if (newChannel) changeBalance(m, newChannel, paidAmount, 0);
-  if (paidAmount > 0) receipts.push({ id: makeId('receipt'), amount: money(paidAmount), mode, date: new Date().toISOString().split('T')[0], ...(notes !== undefined ? { notes } : {}) });
+  const effectiveDate = date && date.trim() ? date.trim() : new Date().toISOString().split('T')[0];
+  if (paidAmount > 0) receipts.push({ id: makeId('receipt'), amount: money(paidAmount), mode, date: effectiveDate, ...(notes !== undefined ? { notes } : {}) });
   flat.receipts = receipts;
   flat.paid = money(currentPaid + paidAmount);
   flat.pending = money(Math.max(0, payable - flat.paid));
   flat.mode = flat.paid === 0 ? 'Due' : mode;
   flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
-  if (paidAmount > 0) flat.payment_date = new Date().toISOString().split('T')[0];
+  if (paidAmount > 0) flat.payment_date = effectiveDate;
   if (notes !== undefined) flat.notes = notes;
   audit(data, { month: monthSheet, action: 'payment.updated', record_id: String(flatNumber), before, after: { ...flat } });
   persist(data);
@@ -278,9 +287,16 @@ export function addExpense(monthSheet: string, expense: ExpenseItem): ApartmentD
   assertCycleOpen(data, monthSheet);
   if (!expense.description.trim() || !Number.isFinite(expense.amount) || expense.amount <= 0) throw new Error('Expense description and a positive amount are required.');
   if (expense.type !== undefined && expense.type !== 'Cash' && expense.type !== 'Bank') throw new Error('Expense channel must be Cash or Bank.');
+  assertDateInCycle(expense.date, monthSheet);
   const m = getMaintenance(data, monthSheet);
   const channel: 'Cash' | 'Bank' = expense.type || 'Cash';
-  const created = { ...expense, type: channel, id: expense.id || makeId('exp'), amount: money(expense.amount) };
+  const created = {
+    ...expense,
+    type: channel,
+    id: expense.id || makeId('exp'),
+    amount: money(expense.amount),
+    date: expense.date || now().split('T')[0]
+  };
   m.expenses.push(created);
   changeBalance(m, created.type || 'Cash', 0, created.amount);
   audit(data, { month: monthSheet, action: 'expense.created', record_id: created.id, after: { ...created } });
@@ -297,12 +313,18 @@ export function updateExpense(month: string, id: string, next: ExpenseItem): Apa
   assertCycleOpen(data, month);
   if (!next.description.trim() || !Number.isFinite(next.amount) || next.amount <= 0) throw new Error('Expense description and a positive amount are required.');
   if (next.type !== undefined && next.type !== 'Cash' && next.type !== 'Bank') throw new Error('Expense channel must be Cash or Bank.');
+  assertDateInCycle(next.date, month);
   const m = getMaintenance(data, month);
   const index = locateExpense(m, id);
   if (index < 0) throw new Error('Expense was not found; reload the statement and try again.');
   const before = { ...m.expenses[index] };
   changeBalance(m, before.type || 'Cash', 0, -before.amount);
-  const updated = { ...next, id: before.id || makeId('exp'), amount: money(next.amount) };
+  const updated = {
+    ...next,
+    id: before.id || makeId('exp'),
+    amount: money(next.amount),
+    date: next.date || before.date || now().split('T')[0]
+  };
   m.expenses[index] = updated;
   changeBalance(m, updated.type || 'Cash', 0, updated.amount);
   audit(data, { month, action: 'expense.updated', record_id: updated.id, before, after: { ...updated } });
@@ -329,8 +351,16 @@ export function addInflow(month: string, inflow: InflowItem): ApartmentData {
   assertCycleOpen(data, month);
   if (!inflow.description.trim() || !Number.isFinite(inflow.amount) || inflow.amount <= 0) throw new Error('Inflow description and a positive amount are required.');
   if (inflow.type !== undefined && inflow.type !== 'Cash' && inflow.type !== 'Bank') throw new Error('Inflow channel must be Cash or Bank.');
+  assertDateInCycle(inflow.date, month);
   const m = getMaintenance(data, month);
-  const created = { ...inflow, id: inflow.id || makeId('in'), amount: money(inflow.amount), type: inflow.type || 'Cash' };
+  const created = {
+    ...inflow,
+    id: inflow.id || makeId('in'),
+    amount: money(inflow.amount),
+    type: inflow.type || 'Cash',
+    category: inflow.category || 'Miscellaneous Society Inflow',
+    date: inflow.date || now().split('T')[0]
+  };
   m.inflows.push(created);
   changeBalance(m, created.type, created.amount, 0);
   audit(data, { month, action: 'inflow.created', record_id: created.id, after: { ...created } });
@@ -343,12 +373,20 @@ export function updateInflow(month: string, id: string, next: InflowItem): Apart
   assertCycleOpen(data, month);
   if (!next.description.trim() || !Number.isFinite(next.amount) || next.amount <= 0) throw new Error('Inflow description and a positive amount are required.');
   if (next.type !== undefined && next.type !== 'Cash' && next.type !== 'Bank') throw new Error('Inflow channel must be Cash or Bank.');
+  assertDateInCycle(next.date, month);
   const m = getMaintenance(data, month);
   const index = m.inflows.findIndex((item, i) => item.id === id || (!item.id && `legacy-in-${i}` === id));
   if (index < 0) throw new Error('Inflow was not found; reload the statement and try again.');
   const before = { ...m.inflows[index] };
   changeBalance(m, before.type || 'Cash', -before.amount, 0);
-  const updated = { ...next, id: before.id || makeId('in'), amount: money(next.amount), type: next.type || 'Cash' };
+  const updated = {
+    ...next,
+    id: before.id || makeId('in'),
+    amount: money(next.amount),
+    type: next.type || 'Cash',
+    category: next.category || before.category || 'Miscellaneous Society Inflow',
+    date: next.date || before.date || now().split('T')[0]
+  };
   m.inflows[index] = updated;
   changeBalance(m, updated.type, updated.amount, 0);
   audit(data, { month, action: 'inflow.updated', record_id: updated.id, before, after: { ...updated } });
@@ -647,6 +685,31 @@ export function initializeCycle(month: string, targetStatus: 'open' | 'closed' |
     month: cycleLabel,
     action: 'legacy.initialized',
     reason: reason.trim() || `Initialized as ${targetStatus}`,
+    after: { ...cycle } as unknown as Record<string, unknown>
+  });
+  persist(data);
+  return data;
+}
+
+export function openCycle(month: string, reason = ''): ApartmentData {
+  const data = getApartmentData();
+  const cycleLabel = Object.keys(data.cycles || {}).find(label => sameCalendarMonth(label, month));
+  const cycle = cycleLabel ? data.cycles?.[cycleLabel] : undefined;
+  if (!cycleLabel || !cycle) throw new Error(`Cycle “${month}” was not found.`);
+  if (cycle.status === 'open') return data;
+  const before = { ...cycle };
+  cycle.status = 'open';
+  cycle.opened_at = now();
+  delete cycle.closed_at;
+  delete cycle.closed_by;
+  delete cycle.close_reason;
+  delete cycle.closed_cash_balance;
+  delete cycle.closed_bank_balance;
+  audit(data, {
+    month: cycleLabel,
+    action: 'opened',
+    reason: reason.trim() || `Opened ${cycleLabel}`,
+    before: before as unknown as Record<string, unknown>,
     after: { ...cycle } as unknown as Record<string, unknown>
   });
   persist(data);

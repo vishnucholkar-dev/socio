@@ -14,6 +14,7 @@ interface NavbarProps {
   selectedFlat: number;
   setSelectedFlat: (flat: number) => void;
   flatsList: number[];
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,7 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   selectedFlat,
   setSelectedFlat,
-  flatsList
+  flatsList,
+  onLogout
 }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm no-print">
@@ -127,6 +129,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               </select>
             </div>
 
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                title="Log out of current role"
+                className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-rose-600 border border-slate-200 rounded-xl hover:bg-rose-50 transition-colors"
+              >
+                Logout
+              </button>
+            )}
+
           </div>
         </div>
 
@@ -147,11 +159,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {currentRole === 'user' && (
             <>
-              <TabBtn id="my-flat" label={`My Flat (${selectedFlat}) Bill & Receipt`} icon={<Receipt size={16} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
-              <TabBtn id="water-meter" label="Water Consumption History" icon={<Droplet size={16} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
-              <TabBtn id="monthly-statement" label="Society Monthly Statement" icon={<Calendar size={16} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
-              <TabBtn id="yearly-statement" label="Yearly Audit & Summary" icon={<TrendingUp size={16} />} active={activeTab === 'yearly-statement'} onClick={setActiveTab} />
-              <TabBtn id="directory" label="Plumber & Electrician Contacts" icon={<Phone size={16} />} active={activeTab === 'directory'} onClick={setActiveTab} />
+              <TabBtn id="my-flat" label={`Dashboard (Flat ${selectedFlat})`} icon={<Building size={16} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
+              <TabBtn id="resident-history" label="Billing & Receipt History" icon={<Receipt size={16} />} active={activeTab === 'resident-history'} onClick={setActiveTab} />
+              <TabBtn id="water-meter" label="Flat Water Consumption & Maintenance" icon={<Droplet size={16} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
+              <TabBtn id="monthly-statement" label="Society Monthly & Yearly Statements" icon={<Calendar size={16} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
+              <TabBtn id="directory" label="Helpful Contacts" icon={<Phone size={16} />} active={activeTab === 'directory'} onClick={setActiveTab} />
             </>
           )}
 

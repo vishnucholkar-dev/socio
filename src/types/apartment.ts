@@ -69,7 +69,16 @@ export interface InflowItem {
   id?: string;
   description: string;
   amount: number;
+  category?: string;
   type?: 'Cash' | 'Bank';
+  date?: string;
+}
+
+export interface AuthSession {
+  role: UserRole;
+  flatNumber?: number;
+  username?: string;
+  loggedInAt: string;
 }
 
 export type CycleStatus = 'open' | 'closed' | 'legacy-closed' | 'initialization-required';

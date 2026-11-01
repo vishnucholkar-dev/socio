@@ -46,6 +46,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   const [watchmanSavedMsg, setWatchmanSavedMsg] = useState(false);
   const [activeFloor, setActiveFloor] = useState<number | 'all'>('all');
   const [mobileWalkthrough, setMobileWalkthrough] = useState(false);
+  const [flatByFlatIndex, setFlatByFlatIndex] = useState(0);
 
   // Sync state if statement changes
   React.useEffect(() => {
@@ -359,128 +360,185 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
             }`}
           >
             <span>📱</span>
-            <span>{mobileWalkthrough ? 'Exit Walkthrough' : 'Mobile Walkthrough Mode'}</span>
+            <span>{mobileWalkthrough ? 'Table View' : 'Flat-by-Flat Wizard Mode'}</span>
           </button>
         </div>
       </div>
 
-      {/* Mobile Walkthrough Mode (Cards for each flat with large touch targets) */}
-      {mobileWalkthrough ? (
-        <div className="space-y-4">
-          <div className="bg-purple-600 text-white p-4 rounded-2xl shadow-md flex items-center justify-between">
-            <div>
-              <h4 className="font-bold text-sm">Water Meter Mobile Walkthrough</h4>
-              <p className="text-xs text-purple-200">Walk door to door and enter meter values directly</p>
+      {/* Flat-by-Flat Step-by-Step Walkthrough Wizard */}
+      {mobileWalkthrough && (() => {
+        const sortedFlats = [...displayFlats].sort((a, b) => a.flat - b.flat);
+        const currentFlat = sortedFlats[flatByFlatIndex] || sortedFlats[0];
+        if (!currentFlat) return null;
+        const currentClosing = readings[currentFlat.flat]?.closing ?? currentFlat.closing_reading;
+        const currentOpening = readings[currentFlat.flat]?.opening ?? currentFlat.opening_reading;
+        const currentError = currentClosing < currentOpening;
+        const currentDiff = Math.max(0, currentClosing - currentOpening);
+
+        return (
+          <div className="space-y-4">
+            {/* Flat Selector Strip */}
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Select Apartment (101 to 408)</p>
+              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {sortedFlats.map((f, idx) => {
+                  const c = readings[f.flat]?.closing ?? f.closing_reading;
+                  const o = readings[f.flat]?.opening ?? f.opening_reading;
+                  const isDone = c > o;
+                  const isErr = c < o;
+                  const isSelected = idx === flatByFlatIndex;
+                  return (
+                    <button
+                      key={f.flat}
+                      onClick={() => setFlatByFlatIndex(idx)}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-mono font-bold transition-all shrink-0 ${
+                        isSelected
+                          ? 'bg-purple-600 text-white ring-2 ring-purple-600 ring-offset-1'
+                          : isErr
+                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                          : isDone
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {f.flat}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            {canEdit && <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-white text-purple-900 text-xs font-black rounded-xl shadow-sm hover:bg-purple-50 transition-all"
-            >
-              Save All
-            </button>}
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {displayFlats
-              .filter(f => activeFloor === 'all' || Math.floor(f.flat / 100) === activeFloor)
-              .map(flat => {
-                const readingClosing = readings[flat.flat]?.closing ?? flat.closing_reading;
-                const readingOpening = readings[flat.flat]?.opening ?? flat.opening_reading;
-                const hasError = readingClosing < readingOpening;
-                const diff = Math.max(0, readingClosing - readingOpening);
-
-                return (
-                  <div
-                    key={flat.flat}
-                    className={`bg-white rounded-2xl border p-4 shadow-sm transition-all ${
-                      hasError
-                        ? 'border-rose-400 bg-rose-50/40 ring-1 ring-rose-400'
-                        : readingClosing > readingOpening
-                        ? 'border-emerald-300 bg-emerald-50/20'
-                        : 'border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-10 h-10 rounded-xl bg-blue-600 text-white font-black text-base flex items-center justify-center shadow-sm">
-                          {flat.flat}
-                        </span>
-                        <div>
-                          <p className="text-xs font-bold text-slate-800">Flat {flat.flat}</p>
-                          <p className="text-[10px] text-slate-500">Floor {Math.floor(flat.flat / 100)}</p>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 block">Opening Reading</span>
-                        <span className="text-xs font-mono font-bold text-slate-700">{readingOpening.toLocaleString()}</span>
-                      </div>
-                    </div>
-
-                    {/* Numeric Input */}
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Closing Meter Reading:
-                      </label>
-                      {canEdit ? <input
-                        type="number"
-                        inputMode="numeric"
-                        value={readingClosing || ''}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setReadings(prev => ({
-                            ...prev,
-                            [flat.flat]: { ...prev[flat.flat], closing: val }
-                          }));
-                          if (!isEditing) setIsEditing(true);
-                        }}
-                        placeholder="Enter 6-digit meter reading"
-                        className={`w-full py-2.5 px-3 rounded-xl text-base font-black font-mono border ${
-                          hasError
-                            ? 'border-rose-500 bg-rose-50 text-rose-800'
-                            : 'border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200'
-                        } focus:outline-none`}
-                      /> : <p className="w-full py-2.5 px-3 rounded-xl text-base font-black font-mono border border-slate-200 bg-slate-50 text-slate-700">{readingClosing.toLocaleString()}</p>}
-                    </div>
-
-                    {/* Feedback badge */}
-                    <div className="mt-2.5 flex items-center justify-between text-xs">
-                      {hasError ? (
-                        <span className="text-rose-600 font-bold flex items-center space-x-1">
-                          <AlertCircle size={14} />
-                          <span>Closing reading cannot be lower than {readingOpening.toLocaleString()}!</span>
-                        </span>
-                      ) : (
-                        <span className="text-emerald-700 font-semibold flex items-center space-x-1">
-                          <CheckCircle2 size={14} className="text-emerald-600" />
-                          <span>Consumed: <strong className="font-mono">{diff.toLocaleString()} L</strong> ({Math.round(diff / days)} L/day)</span>
-                        </span>
-                      )}
-
-                      <span className="font-bold text-slate-900 font-mono">
-                        {formatINR(flat.actual_amount)}
-                      </span>
-                    </div>
+            {/* Focused Flat Entry Card */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-lg p-6 sm:p-8">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center space-x-3">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-600 text-white font-black text-2xl flex items-center justify-center shadow-md">
+                    {currentFlat.flat}
                   </div>
-                );
-              })}
-          </div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900">Apartment {currentFlat.flat}</h3>
+                    <p className="text-xs text-slate-500">Floor {Math.floor(currentFlat.flat / 100)} • Flat {flatByFlatIndex + 1} of {sortedFlats.length}</p>
+                  </div>
+                </div>
 
-          <div className="sticky bottom-16 md:bottom-4 p-3 bg-white/95 backdrop-blur border border-slate-200 rounded-2xl shadow-xl flex justify-between items-center z-30">
-            <span className="text-xs font-bold text-slate-700">Finished entering readings?</span>
-            <button
-              onClick={handleSave}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-all"
-            >
-              Save All Readings Now
-            </button>
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 block font-medium">Opening Reading Baseline</span>
+                  <span className="text-lg font-mono font-bold text-slate-900">{currentOpening.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Closing Meter Reading
+                  </label>
+                  {canEdit ? (
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={currentClosing || ''}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setReadings(prev => ({
+                          ...prev,
+                          [currentFlat.flat]: { ...prev[currentFlat.flat], closing: val }
+                        }));
+                        if (!isEditing) setIsEditing(true);
+                      }}
+                      placeholder={`Must be ≥ ${currentOpening.toLocaleString()}`}
+                      className={`w-full py-4 px-5 rounded-2xl text-2xl font-black font-mono border ${
+                        currentError
+                          ? 'border-rose-500 bg-rose-50 text-rose-900'
+                          : 'border-slate-300 bg-slate-50 text-slate-900 focus:bg-white focus:border-purple-600 focus:ring-4 focus:ring-purple-100'
+                      } focus:outline-none transition-all`}
+                    />
+                  ) : (
+                    <div className="w-full py-4 px-5 rounded-2xl text-2xl font-black font-mono border border-slate-200 bg-slate-50 text-slate-800">
+                      {currentClosing.toLocaleString()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Calculation Feedback */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <p className="text-[11px] text-slate-500 font-medium">Water Consumed</p>
+                    <p className="text-lg font-bold font-mono text-purple-700 mt-0.5">{formatLiters(currentDiff)}</p>
+                    <p className="text-[10px] text-slate-400">({Math.round(currentDiff / days)} L/day)</p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                    <p className="text-[11px] text-slate-500 font-medium">Water Charge</p>
+                    <p className="text-lg font-bold font-mono text-slate-900 mt-0.5">{formatINR(currentFlat.water_charge)}</p>
+                    <p className="text-[10px] text-slate-400">@ {formatINRExact(displayLiterRate)}/L</p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200 col-span-2 sm:col-span-1">
+                    <p className="text-[11px] text-purple-700 font-bold">Total Month Bill</p>
+                    <p className="text-lg font-black font-mono text-purple-900 mt-0.5">{formatINR(currentFlat.actual_amount)}</p>
+                    <p className="text-[10px] text-purple-600">+ ₹{currentFlat.mandatory_maintenance} base</p>
+                  </div>
+                </div>
+
+                {currentError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center space-x-2">
+                    <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                    <span>Closing reading cannot be lower than opening reading ({currentOpening.toLocaleString()}).</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Navigation Controls */}
+              <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  disabled={flatByFlatIndex === 0}
+                  onClick={() => setFlatByFlatIndex(prev => Math.max(0, prev - 1))}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold disabled:opacity-40"
+                >
+                  ← Previous Flat
+                </button>
+
+                <div className="flex items-center space-x-2">
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm"
+                    >
+                      Save All Readings
+                    </button>
+                  )}
+
+                  {flatByFlatIndex < sortedFlats.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setFlatByFlatIndex(prev => Math.min(sortedFlats.length - 1, prev + 1))}
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md flex items-center space-x-1"
+                    >
+                      <span>Next Flat</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setFlatByFlatIndex(0)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold"
+                    >
+                      Return to 101
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      ) : (
-        <>
-      {/* 32-Flat Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        );
+      })()}
+
+      {/* Mode View: Flat-by-Flat Wizard Mode OR Full 32-Flat Table */}
+      {!mobileWalkthrough && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">Flat Water Consumption & Maintenance Table</h3>
             <p className="text-xs text-slate-500">Every flat's meter reading, consumed liters, water charge, and total payable</p>
@@ -614,7 +672,6 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
           </table>
         </div>
       </div>
-        </>
       )}
     </div>
   );

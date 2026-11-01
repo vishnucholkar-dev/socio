@@ -140,9 +140,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                         <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.cash_opening)}</td>
                       </tr>
                     )}
-                    {currentMaint.inflows.map((item, idx) => (
+                    {currentMaint.inflows.filter(i => (i.type || 'Cash') === 'Cash').map((item, idx) => (
                       <tr key={idx}>
-                        <td className="py-1.5 text-slate-600">{item.description}</td>
+                        <td className="py-1.5 text-slate-600">
+                          {item.description}
+                          {item.category && <span className="text-[10px] text-slate-400 block">{item.category}{item.date ? ` • ${item.date}` : ''}</span>}
+                        </td>
                         <td className="py-1.5 text-right font-mono font-semibold">{formatINR(item.amount)}</td>
                       </tr>
                     ))}
@@ -170,6 +173,15 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                         <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.bank_opening)}</td>
                       </tr>
                     )}
+                    {currentMaint.inflows.filter(i => i.type === 'Bank').map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="py-1.5 text-slate-600">
+                          {item.description}
+                          {item.category && <span className="text-[10px] text-slate-400 block">{item.category}{item.date ? ` • ${item.date}` : ''}</span>}
+                        </td>
+                        <td className="py-1.5 text-right font-mono font-semibold">{formatINR(item.amount)}</td>
+                      </tr>
+                    ))}
                     <tr className="bg-blue-50/50 font-bold">
                       <td className="py-1.5 px-2 text-blue-900">Total Bank Inflows (IB)</td>
                       <td className="py-1.5 px-2 text-right font-mono text-blue-900">

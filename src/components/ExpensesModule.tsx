@@ -18,9 +18,10 @@ interface ExpensesModuleProps {
   onUpdateTransfer: (month: string, id: string, transfer: Omit<BalanceTransfer, 'id'>) => boolean;
   onDeleteTransfer: (month: string, id: string) => boolean;
   cycleStatus?: CycleStatus;
+  openCycles?: string[];
 }
 
-const PRESET_CATEGORIES = [
+const PRESET_EXPENSE_CATEGORIES = [
   'Water Tankers',
   'Security & Watchman',
   'Staff Salary (Laxman)',
@@ -35,6 +36,34 @@ const PRESET_CATEGORIES = [
   'Miscellaneous'
 ];
 
+const PRESET_INFLOW_CATEGORIES = [
+  'Vendor Ad Rent (Lift / Gate Displays)',
+  'Bank Savings Interest',
+  'Scrap & Recyclable Sales',
+  'Festival & Event Contributions',
+  'Move-in / Move-out Charges',
+  'Clubhouse / Terrace Booking',
+  'Donation & Sponsorship',
+  'Miscellaneous Society Inflow'
+];
+
+function getFirstOfMonth(monthLabel: string): string {
+  const d = new Date(`${monthLabel} 1 UTC`);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
+function getLastOfMonth(monthLabel: string): string {
+  const d = new Date(`${monthLabel} 1 UTC`);
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0];
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
 export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   currentRole,
   selectedMonth,
@@ -48,7 +77,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   onAddTransfer,
   onUpdateTransfer,
   onDeleteTransfer,
-  cycleStatus = 'legacy-closed'
+  cycleStatus = 'legacy-closed',
+  openCycles
 }) => {
   const matchingStatements = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentStatement = matchingStatements.length === 1 ? matchingStatements[0] : undefined;
@@ -60,9 +90,12 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
 
   // Modal State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [targetCycle, setTargetCycle] = useState<string>(selectedMonth);
+  const [entryDate, setEntryDate] = useState<string>(() => getFirstOfMonth(selectedMonth));
   const [desc, setDesc] = useState('');
   const [amt, setAmt] = useState<number>(0);
   const [category, setCategory] = useState('Water Tankers');
+  const [inflowCategory, setInflowCategory] = useState('Vendor Ad Rent (Lift / Gate Displays)');
   const [expenseType, setExpenseType] = useState<'Cash' | 'Bank'>('Cash');
   const [entryKind, setEntryKind] = useState<'expense' | 'inflow' | 'transfer'>('expense');
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
@@ -103,40 +136,85 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     categoryTotals[cat] = (categoryTotals[cat] || 0) + (e.amount || 0);
   });
 
+  // Inflow category aggregations
+  const inflowCategoryTotals: { [key: string]: number } = {};
+  currentStatement.inflows.forEach(i => {
+    const cat = i.category || 'Miscellaneous Society Inflow';
+    inflowCategoryTotals[cat] = (inflowCategoryTotals[cat] || 0) + (i.amount || 0);
+  });
+
+  const handleTargetCycleChange = (newCycle: string) => {
+    setTargetCycle(newCycle);
+    setEntryDate(getFirstOfMonth(newCycle));
+  };
+
   const openNewEntry = (kind: 'expense' | 'inflow' | 'transfer') => {
+    const initialCycle = (openCycles && openCycles.includes(selectedMonth)) ? selectedMonth : (openCycles?.[0] || selectedMonth);
+    setTargetCycle(initialCycle);
+    setEntryDate(getFirstOfMonth(initialCycle));
     setEntryKind(kind);
     setEditingExpense(null);
     setEditingExpenseId(null);
-    setEditingInflowId(null); setEditingTransferId(null);
-    setDesc(''); setAmt(0); setCategory('Water Tankers'); setExpenseType('Cash');
-    setInflowDescription(''); setInflowAmount(0); setInflowType('Cash');
-    setTransferDescription(''); setTransferAmount(0); setTransferFrom('Cash');
+    setEditingInflowId(null);
+    setEditingTransferId(null);
+    setDesc('');
+    setAmt(0);
+    setCategory('Water Tankers');
+    setInflowCategory('Vendor Ad Rent (Lift / Gate Displays)');
+    setExpenseType('Cash');
+    setInflowDescription('');
+    setInflowAmount(0);
+    setInflowType('Cash');
+    setTransferDescription('');
+    setTransferAmount(0);
+    setTransferFrom('Cash');
     setShowAddModal(true);
   };
 
   const openEditExpense = (expense: ExpenseItem, index: number) => {
     if (!canEdit) return;
     setEntryKind('expense');
+    setTargetCycle(currentStatement.sheet_name);
+    setEntryDate(expense.date || getFirstOfMonth(currentStatement.sheet_name));
     setEditingExpense({ ...expense });
     setEditingExpenseId(expense.id || `legacy-exp-${currentStatement.expenses.indexOf(expense)}` || `legacy-exp-${index}`);
-    setEditingInflowId(null); setEditingTransferId(null);
-    setDesc(expense.description); setAmt(expense.amount); setCategory(expense.category || 'Miscellaneous'); setExpenseType(expense.type || 'Cash');
+    setEditingInflowId(null);
+    setEditingTransferId(null);
+    setDesc(expense.description);
+    setAmt(expense.amount);
+    setCategory(expense.category || 'Miscellaneous');
+    setExpenseType(expense.type || 'Cash');
     setShowAddModal(true);
   };
 
   const openEditInflow = (inflow: InflowItem, index: number) => {
     if (!canEdit) return;
-    setEntryKind('inflow'); setEditingExpense(null); setEditingExpenseId(null); setEditingTransferId(null);
+    setEntryKind('inflow');
+    setTargetCycle(currentStatement.sheet_name);
+    setEntryDate(inflow.date || getFirstOfMonth(currentStatement.sheet_name));
+    setEditingExpense(null);
+    setEditingExpenseId(null);
+    setEditingTransferId(null);
     setEditingInflowId(inflow.id || `legacy-in-${index}`);
-    setInflowDescription(inflow.description); setInflowAmount(inflow.amount); setInflowType(inflow.type || 'Cash');
+    setInflowDescription(inflow.description);
+    setInflowAmount(inflow.amount);
+    setInflowType(inflow.type || 'Cash');
+    setInflowCategory(inflow.category || 'Miscellaneous Society Inflow');
     setShowAddModal(true);
   };
 
   const openEditTransfer = (transfer: BalanceTransfer, index: number) => {
     if (!canEdit) return;
-    setEntryKind('transfer'); setEditingExpense(null); setEditingExpenseId(null); setEditingInflowId(null);
+    setEntryKind('transfer');
+    setTargetCycle(currentStatement.sheet_name);
+    setEntryDate(transfer.date || getFirstOfMonth(currentStatement.sheet_name));
+    setEditingExpense(null);
+    setEditingExpenseId(null);
+    setEditingInflowId(null);
     setEditingTransferId(transfer.id || `legacy-transfer-${index}`);
-    setTransferDescription(transfer.description); setTransferAmount(transfer.amount); setTransferFrom(transfer.from);
+    setTransferDescription(transfer.description);
+    setTransferAmount(transfer.amount);
+    setTransferFrom(transfer.from);
     setShowAddModal(true);
   };
 
@@ -144,22 +222,54 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     e.preventDefault();
     if (!canEdit) return;
     let saved = false;
+    const saveMonth = editingExpenseId || editingInflowId || editingTransferId ? currentStatement.sheet_name : targetCycle;
+
     if (entryKind === 'expense') {
       if (!desc.trim() || !Number.isFinite(amt) || amt <= 0) return;
-      const next = { ...(editingExpense || {}), description: desc.trim(), amount: amt, category, type: expenseType, date: editingExpense?.date || new Date().toISOString().split('T')[0] };
-      saved = editingExpenseId ? onUpdateExpense(currentStatement.sheet_name, editingExpenseId, next) : onAddExpense(currentStatement.sheet_name, next);
+      const next: ExpenseItem = {
+        ...(editingExpense || {}),
+        description: desc.trim(),
+        amount: amt,
+        category,
+        type: expenseType,
+        date: entryDate
+      };
+      saved = editingExpenseId ? onUpdateExpense(saveMonth, editingExpenseId, next) : onAddExpense(saveMonth, next);
     } else if (entryKind === 'inflow') {
       if (!inflowDescription.trim() || !Number.isFinite(inflowAmount) || inflowAmount <= 0) return;
-      const next = { description: inflowDescription.trim(), amount: inflowAmount, type: inflowType };
-      saved = editingInflowId ? onUpdateInflow(currentStatement.sheet_name, editingInflowId, next) : onAddInflow(currentStatement.sheet_name, next);
+      const next: InflowItem = {
+        description: inflowDescription.trim(),
+        amount: inflowAmount,
+        type: inflowType,
+        category: inflowCategory,
+        date: entryDate
+      };
+      saved = editingInflowId ? onUpdateInflow(saveMonth, editingInflowId, next) : onAddInflow(saveMonth, next);
     } else {
       if (!Number.isFinite(transferAmount) || transferAmount <= 0) return;
       const destination: 'Cash' | 'Bank' = transferFrom === 'Cash' ? 'Bank' : 'Cash';
-      const next = { description: transferDescription.trim() || `Transfer ${transferFrom} to ${destination}`, amount: transferAmount, from: transferFrom, to: destination, date: new Date().toISOString().split('T')[0] };
-      saved = editingTransferId ? onUpdateTransfer(currentStatement.sheet_name, editingTransferId, next) : onAddTransfer(currentStatement.sheet_name, next);
+      const next = {
+        description: transferDescription.trim() || `Transfer ${transferFrom} to ${destination}`,
+        amount: transferAmount,
+        from: transferFrom,
+        to: destination,
+        date: entryDate
+      };
+      saved = editingTransferId ? onUpdateTransfer(saveMonth, editingTransferId, next) : onAddTransfer(saveMonth, next);
     }
+
     if (!saved) return;
-    setDesc(''); setAmt(0); setShowAddModal(false); setEditingExpense(null); setEditingExpenseId(null); setEditingInflowId(null); setEditingTransferId(null); setInflowDescription(''); setInflowAmount(0); setTransferDescription(''); setTransferAmount(0);
+    setDesc('');
+    setAmt(0);
+    setShowAddModal(false);
+    setEditingExpense(null);
+    setEditingExpenseId(null);
+    setEditingInflowId(null);
+    setEditingTransferId(null);
+    setInflowDescription('');
+    setInflowAmount(0);
+    setTransferDescription('');
+    setTransferAmount(0);
   };
 
   return (
@@ -374,9 +484,25 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
           <div><h3 className="font-bold text-slate-900 text-sm">Itemized Inflows & Receipts</h3><p className="text-xs text-slate-500">Cash and bank income recorded for this cycle</p></div>
           <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full">{currentStatement.inflows.length} Records</span>
         </div>
+
+        {/* Top Inflow Categories Breakdown */}
+        {Object.keys(inflowCategoryTotals).length > 0 && (
+          <div className="p-4 bg-slate-50/50 border-b border-slate-100">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Inflows by Category</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {Object.entries(inflowCategoryTotals).map(([cat, amount]) => (
+                <div key={cat} className="p-2.5 rounded-xl border border-slate-200 bg-white shadow-xs">
+                  <p className="text-[10px] font-medium text-slate-500 truncate">{cat}</p>
+                  <p className="text-xs font-bold text-emerald-700 mt-0.5">{formatINR(amount)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto"><table className="w-full text-left text-xs border-collapse">
-          <thead><tr className="bg-slate-100 text-slate-600 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200"><th className="py-3 px-4">Inflow Description</th><th className="py-3 px-4">Account</th><th className="py-3 px-4 text-right">Amount</th>{canEdit && <th className="py-3 px-4 text-right">Actions</th>}</tr></thead>
-          <tbody className="divide-y divide-slate-100">{currentStatement.inflows.length === 0 ? <tr><td colSpan={canEdit ? 4 : 3} className="py-6 text-center text-slate-400">No inflows recorded.</td></tr> : currentStatement.inflows.map((inflow, index) => <tr key={inflow.id || `legacy-in-${index}`} className="hover:bg-slate-50"><td className="py-3 px-4 font-semibold text-slate-900">{inflow.description}</td><td className="py-3 px-4">{inflow.type || 'Cash'}</td><td className="py-3 px-4 text-right font-bold text-emerald-700">{formatINR(inflow.amount)}</td>{canEdit && <td className="py-3 px-4 text-right whitespace-nowrap"><button onClick={() => openEditInflow(inflow, index)} className="text-blue-700 font-semibold mr-3">Edit</button><button onClick={() => { if (window.confirm(`Delete inflow “${inflow.description}”?`)) onDeleteInflow(currentStatement.sheet_name, inflow.id || `legacy-in-${index}`); }} className="text-rose-700 font-semibold">Delete</button></td>}</tr>)}</tbody>
+          <thead><tr className="bg-slate-100 text-slate-600 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200"><th className="py-3 px-4">Date</th><th className="py-3 px-4">Inflow Description</th><th className="py-3 px-4">Category</th><th className="py-3 px-4">Account</th><th className="py-3 px-4 text-right">Amount</th>{canEdit && <th className="py-3 px-4 text-right">Actions</th>}</tr></thead>
+          <tbody className="divide-y divide-slate-100">{currentStatement.inflows.length === 0 ? <tr><td colSpan={canEdit ? 6 : 5} className="py-6 text-center text-slate-400">No inflows recorded.</td></tr> : currentStatement.inflows.map((inflow, index) => <tr key={inflow.id || `legacy-in-${index}`} className="hover:bg-slate-50"><td className="py-3 px-4 font-mono text-slate-500">{inflow.date || '—'}</td><td className="py-3 px-4 font-semibold text-slate-900">{inflow.description}</td><td className="py-3 px-4"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">{inflow.category || 'Miscellaneous'}</span></td><td className="py-3 px-4">{inflow.type || 'Cash'}</td><td className="py-3 px-4 text-right font-bold text-emerald-700">{formatINR(inflow.amount)}</td>{canEdit && <td className="py-3 px-4 text-right whitespace-nowrap"><button onClick={() => openEditInflow(inflow, index)} className="text-blue-700 font-semibold mr-3">Edit</button><button onClick={() => { if (window.confirm(`Delete inflow “${inflow.description}”?`)) onDeleteInflow(currentStatement.sheet_name, inflow.id || `legacy-in-${index}`); }} className="text-rose-700 font-semibold">Delete</button></td>}</tr>)}</tbody>
         </table></div>
       </div>
 
@@ -402,6 +528,32 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
             </p>
 
             <form onSubmit={handleSaveEntry} className="mt-4 space-y-4">
+              {openCycles && openCycles.length > 1 && !editingExpenseId && !editingInflowId && !editingTransferId && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Billing Cycle</label>
+                  <select
+                    value={targetCycle}
+                    onChange={(e) => handleTargetCycleChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                  >
+                    {openCycles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Transaction Date</label>
+                <input
+                  type="date"
+                  min={getFirstOfMonth(targetCycle)}
+                  max={getLastOfMonth(targetCycle)}
+                  value={entryDate}
+                  onChange={(e) => setEntryDate(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
               {entryKind !== 'transfer' && <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">{entryKind === 'expense' ? 'Expense Description' : 'Inflow Description'}</label>
                 <input
@@ -427,18 +579,31 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 />
               </div>
 
-              {entryKind === 'expense' && <><div>
+              {entryKind === 'expense' && <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
                 >
-                  {PRESET_CATEGORIES.map(c => (
+                  {PRESET_EXPENSE_CATEGORIES.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
-              </div></>}
+              </div>}
+
+              {entryKind === 'inflow' && <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Inflow Category</label>
+                <select
+                  value={inflowCategory}
+                  onChange={(e) => setInflowCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                >
+                  {PRESET_INFLOW_CATEGORIES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>}
 
               {entryKind === 'expense' ? <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Paid Via</label>
