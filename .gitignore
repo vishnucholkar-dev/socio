@@ -1,0 +1,28 @@
+# Local development secrets and runtime files
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+dist-ts/
+.pnpm-store/
+__pycache__/
+*.py[cod]
+.venv/
+
+# Legacy and one-off Python migration scripts
+app.jsx
+scripts/*.py
+!scripts/build.mjs
+
+# Private resident, tenant, and financial datasets (NEVER COMMIT TO GITHUB)
+src/data/apartment_seed.json
+src/data/apartment_seed.live.json
+src/data/default_contacts.live.ts
+apartment_data.js
+exports/
+*.zip
+*.tar.gz
+*.sqlite
+*.db
+rockcliff-*.json

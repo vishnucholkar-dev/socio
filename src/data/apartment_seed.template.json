@@ -1,0 +1,258 @@
+{
+  "apartment_name": "Demo Apartment Society",
+  "total_flats": 4,
+  "flats": [101, 102, 201, 202],
+  "water_statements": [
+    {
+      "sheet_name": "November 2026",
+      "title": "Water Billing for November 2026",
+      "reading_date": null,
+      "days": 30,
+      "tanker_bill": 0,
+      "electricity_bill": 12000,
+      "common_utilization": 6000,
+      "net_electricity": 6000,
+      "mandatory_maintenance": 1400,
+      "total_water_consumption_liters": 0,
+      "avg_per_day_liters": 0,
+      "liter_per_charge": 0,
+      "readings_complete": false,
+      "flats": [
+        {
+          "flat": 101,
+          "opening_reading": 12000,
+          "closing_reading": 0,
+          "liters": 0,
+          "avg_per_day": 0,
+          "water_charge": 0,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 1400,
+          "pending_amount": 0,
+          "total_payable": 1400
+        },
+        {
+          "flat": 102,
+          "opening_reading": 15000,
+          "closing_reading": 0,
+          "liters": 0,
+          "avg_per_day": 0,
+          "water_charge": 0,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 1400,
+          "pending_amount": 0,
+          "total_payable": 1400
+        },
+        {
+          "flat": 201,
+          "opening_reading": 18000,
+          "closing_reading": 0,
+          "liters": 0,
+          "avg_per_day": 0,
+          "water_charge": 0,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 1400,
+          "pending_amount": 0,
+          "total_payable": 1400
+        },
+        {
+          "flat": 202,
+          "opening_reading": 21000,
+          "closing_reading": 0,
+          "liters": 0,
+          "avg_per_day": 0,
+          "water_charge": 0,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 1400,
+          "pending_amount": 0,
+          "total_payable": 1400
+        }
+      ]
+    },
+    {
+      "sheet_name": "October 2026",
+      "title": "Water Billing for October 2026",
+      "reading_date": "2026-10-31",
+      "days": 31,
+      "tanker_bill": 5000,
+      "electricity_bill": 11000,
+      "common_utilization": 6000,
+      "net_electricity": 5000,
+      "mandatory_maintenance": 1400,
+      "total_water_consumption_liters": 20000,
+      "avg_per_day_liters": 645,
+      "liter_per_charge": 0.5,
+      "readings_complete": true,
+      "flats": [
+        {
+          "flat": 101,
+          "opening_reading": 7000,
+          "closing_reading": 12000,
+          "liters": 5000,
+          "avg_per_day": 161.3,
+          "water_charge": 2500,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 3900,
+          "pending_amount": 0,
+          "total_payable": 3900
+        },
+        {
+          "flat": 102,
+          "opening_reading": 10000,
+          "closing_reading": 15000,
+          "liters": 5000,
+          "avg_per_day": 161.3,
+          "water_charge": 2500,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 3900,
+          "pending_amount": 0,
+          "total_payable": 3900
+        },
+        {
+          "flat": 201,
+          "opening_reading": 13000,
+          "closing_reading": 18000,
+          "liters": 5000,
+          "avg_per_day": 161.3,
+          "water_charge": 2500,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 3900,
+          "pending_amount": 0,
+          "total_payable": 3900
+        },
+        {
+          "flat": 202,
+          "opening_reading": 16000,
+          "closing_reading": 21000,
+          "liters": 5000,
+          "avg_per_day": 161.3,
+          "water_charge": 2500,
+          "mandatory_maintenance": 1400,
+          "actual_amount": 3900,
+          "pending_amount": 0,
+          "total_payable": 3900
+        }
+      ]
+    }
+  ],
+  "maintenance_statements": [
+    {
+      "sheet_name": "November 2026",
+      "title": "Maintenance Statement for November 2026",
+      "flats": [
+        {
+          "flat": 101,
+          "actual": 1400,
+          "previous_pending": 0,
+          "total_payable": 1400,
+          "paid": 0,
+          "pending": 1400,
+          "mode": "Due",
+          "status": "Due"
+        },
+        {
+          "flat": 102,
+          "actual": 1400,
+          "previous_pending": 0,
+          "total_payable": 1400,
+          "paid": 0,
+          "pending": 1400,
+          "mode": "Due",
+          "status": "Due"
+        },
+        {
+          "flat": 201,
+          "actual": 1400,
+          "previous_pending": 0,
+          "total_payable": 1400,
+          "paid": 0,
+          "pending": 1400,
+          "mode": "Due",
+          "status": "Due"
+        },
+        {
+          "flat": 202,
+          "actual": 1400,
+          "previous_pending": 0,
+          "total_payable": 1400,
+          "paid": 0,
+          "pending": 1400,
+          "mode": "Due",
+          "status": "Due"
+        }
+      ],
+      "inflows": [],
+      "expenses": [],
+      "transfers": [],
+      "cash_opening": 10000,
+      "bank_opening": 50000,
+      "cash_total_in": 0,
+      "bank_total_in": 0,
+      "cash_total_out": 0,
+      "bank_total_out": 0,
+      "cash_balance": 10000,
+      "bank_balance": 50000,
+      "total_balance": 60000,
+      "dues_list": []
+    },
+    {
+      "sheet_name": "October 2026",
+      "title": "Maintenance Statement for October 2026",
+      "flats": [
+        {
+          "flat": 101,
+          "actual": 3900,
+          "previous_pending": 0,
+          "total_payable": 3900,
+          "paid": 3900,
+          "pending": 0,
+          "mode": "Online",
+          "status": "Paid"
+        },
+        {
+          "flat": 102,
+          "actual": 3900,
+          "previous_pending": 0,
+          "total_payable": 3900,
+          "paid": 3900,
+          "pending": 0,
+          "mode": "Online",
+          "status": "Paid"
+        },
+        {
+          "flat": 201,
+          "actual": 3900,
+          "previous_pending": 0,
+          "total_payable": 3900,
+          "paid": 3900,
+          "pending": 0,
+          "mode": "Cash",
+          "status": "Paid"
+        },
+        {
+          "flat": 202,
+          "actual": 3900,
+          "previous_pending": 0,
+          "total_payable": 3900,
+          "paid": 3900,
+          "pending": 0,
+          "mode": "Online",
+          "status": "Paid"
+        }
+      ],
+      "inflows": [],
+      "expenses": [],
+      "transfers": [],
+      "cash_opening": 6100,
+      "bank_opening": 38300,
+      "cash_total_in": 3900,
+      "bank_total_in": 11700,
+      "cash_total_out": 0,
+      "bank_total_out": 0,
+      "cash_balance": 10000,
+      "bank_balance": 50000,
+      "total_balance": 60000,
+      "dues_list": []
+    }
+  ],
+  "extracted_at": "2026-11-01T00:00:00.000Z"
+}

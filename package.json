@@ -1,0 +1,38 @@
+{
+  "name": "apartment-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "bundle": "node --experimental-strip-types scripts/build.mjs",
+    "setup:seed": "node -e \"if (!require('node:fs').existsSync('./src/data/apartment_seed.json')) require('node:fs').copyFileSync('./src/data/apartment_seed.template.json', './src/data/apartment_seed.json')\"",
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types --loader ./tests/loader.mjs ./tests/cycles_and_storage.test.mjs",
+    "dev:stack": "docker compose up --build"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.453.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.3",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "deepmerge": "^4.3.1",
+    "esbuild": "^0.21.5",
+    "esbuild-wasm": "^0.28.2",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
+  }
+}
