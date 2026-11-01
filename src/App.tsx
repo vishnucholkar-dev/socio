@@ -24,7 +24,9 @@ import {
   sameCalendarMonth,
   saveContact,
   deleteContact,
-  addBillingConfig
+  addBillingConfig,
+  exportApartmentDataBackup,
+  importApartmentDataBackup
 } from './services/storage';
 
 import { Navbar } from './components/Navbar';
@@ -271,6 +273,21 @@ export const App: React.FC = () => {
         onClose={() => setIsSettingsOpen(false)}
         configHistory={data.billing_config_history}
         onAddConfig={handleAddConfig}
+        onExportBackup={() => {
+          const jsonStr = exportApartmentDataBackup();
+          const blob = new Blob([jsonStr], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `rockcliff-society-backup-${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }}
+        onImportBackup={(jsonContent) => {
+          runAction(() => importApartmentDataBackup(jsonContent));
+        }}
       />
 
       {/* Mobile Floating Action Button to Toggle Role or Settings */}

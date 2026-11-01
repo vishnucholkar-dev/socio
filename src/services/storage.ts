@@ -996,3 +996,25 @@ export function deleteContact(id: string): ApartmentData {
 export function recordCycleAudit(data: ApartmentData, event: Omit<CycleAuditEvent, 'id' | 'occurred_at' | 'actor'>): void {
   audit(data, event);
 }
+
+export function exportApartmentDataBackup(): string {
+  const data = getApartmentData();
+  return JSON.stringify(data, null, 2);
+}
+
+export function importApartmentDataBackup(jsonString: string): ApartmentData {
+  let parsed: ApartmentData;
+  try {
+    parsed = JSON.parse(jsonString) as ApartmentData;
+  } catch {
+    throw new Error('Invalid JSON backup file. The backup could not be parsed.');
+  }
+
+  if (!parsed || !Array.isArray(parsed.water_statements) || !Array.isArray(parsed.maintenance_statements)) {
+    throw new Error('The backup file has an invalid shape and does not contain valid apartment statements.');
+  }
+
+  const normalized = normalizeData(parsed);
+  persist(normalized.data);
+  return normalized.data;
+}

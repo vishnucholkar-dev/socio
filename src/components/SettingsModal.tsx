@@ -8,13 +8,17 @@ interface SettingsModalProps {
   onClose: () => void;
   configHistory: BillingConfigEntry[];
   onAddConfig: (entry: Omit<BillingConfigEntry, 'id' | 'changed_at'>) => boolean;
+  onExportBackup?: () => void;
+  onImportBackup?: (jsonContent: string) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   configHistory,
-  onAddConfig
+  onAddConfig,
+  onExportBackup,
+  onImportBackup
 }) => {
   const latest = configHistory.length > 0 ? configHistory[configHistory.length - 1] : null;
 
@@ -24,6 +28,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [changedBy, setChangedBy] = useState<string>('Society General Body / Admin');
   const [notes, setNotes] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState(false);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -195,6 +200,71 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Cross-Browser Society Data Backup & Restore */}
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-base">💾</span>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Cross-Browser Backup & Restore
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Transfer your active society receipts, open cycles, and expenses seamlessly between Chrome, Edge, and other browsers.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {onExportBackup && (
+              <button
+                type="button"
+                onClick={onExportBackup}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all shadow-xs"
+              >
+                ⬇️ Export Backup (JSON)
+              </button>
+            )}
+
+            {onImportBackup && (
+              <label className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition-all cursor-pointer border border-blue-200 shadow-xs">
+                <span>⬆️ Import Backup (JSON)</span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const content = event.target?.result as string;
+                      if (content) {
+                        try {
+                          onImportBackup(content);
+                          setImportStatus('Backup restored successfully! All data updated.');
+                          setTimeout(() => {
+                            setImportStatus(null);
+                            onClose();
+                          }, 1500);
+                        } catch (err) {
+                          setImportStatus(err instanceof Error ? err.message : 'Import failed.');
+                        }
+                      }
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
+              </label>
+            )}
+
+            {importStatus && (
+              <span className={`text-xs font-bold px-3 py-1 rounded-lg ${
+                importStatus.includes('successfully') ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'
+              }`}>
+                {importStatus}
+              </span>
+            )}
           </div>
         </div>
       </div>
