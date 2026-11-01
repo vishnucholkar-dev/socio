@@ -575,12 +575,12 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                   <tr
                     key={flat.flat}
                     className={`hover:bg-slate-50 transition-colors ${
-                      isSelected ? 'bg-blue-50/80 font-medium' : ''
+                      isSelected ? 'bg-blue-100/70 font-semibold ring-1 ring-blue-300' : ''
                     } ${hasError ? 'bg-rose-50' : ''}`}
                   >
                     <td className="py-2.5 px-3 text-center font-bold text-slate-900">
-                      <span className={`px-2 py-0.5 rounded-lg ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}>
-                        {flat.flat}
+                      <span className={`px-2.5 py-1 rounded-lg ${isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700'}`}>
+                        {flat.flat} {isSelected && '★'}
                       </span>
                     </td>
 

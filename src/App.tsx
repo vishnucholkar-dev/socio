@@ -38,6 +38,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { CycleManagement } from './components/CycleManagement';
 import { LoginModal } from './components/LoginModal';
 import { ResidentHistory } from './components/ResidentHistory';
+import { ResidentDashboard } from './components/ResidentDashboard';
 import { getStoredSession, clearSession } from './services/auth';
 
 export const App: React.FC = () => {
@@ -139,16 +140,25 @@ export const App: React.FC = () => {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {actionError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 whitespace-pre-wrap">{actionError}<button className="float-right font-bold" onClick={() => setActionError(null)} aria-label="Dismiss error">×</button></div>}
-        {activeTab === 'cycle-management' && (
+        {activeTab === 'cycle-management' && currentRole === 'admin' && (
           <CycleManagement data={data} month={selectedMonth} isAdmin={currentRole === 'admin'} onCloseCycle={handleCloseCycle} onOpenNext={(month) => { try { const updated = openNextCycle(month); setData({ ...updated }); setActionError(null); setSelectedMonth(nextMonthLabel(month)); } catch (error) { setActionError(error instanceof Error ? error.message : 'The operation could not be saved.'); } }} onReopen={handleReopenCycle} onOpenCycle={handleOpenCycle} onInitializeCycle={handleInitializeCycle} />
         )}
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && currentRole !== 'user' && (
           <DashboardModule
             data={data}
             selectedMonth={selectedMonth}
             setActiveTab={setActiveTab}
             currentRole={currentRole}
             selectedFlat={selectedFlat}
+          />
+        )}
+        {activeTab === 'my-flat' && (
+          <ResidentDashboard
+            selectedFlat={selectedFlat}
+            selectedMonth={selectedMonth}
+            allMaintenanceStatements={data.maintenance_statements}
+            allWaterStatements={data.water_statements}
+            setActiveTab={setActiveTab}
           />
         )}
 
@@ -164,7 +174,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {(activeTab === 'collections' || activeTab === 'my-flat') && (
+        {activeTab === 'collections' && currentRole !== 'user' && (
           <CollectionsModule
             currentRole={currentRole}
             selectedMonth={selectedMonth}
@@ -177,7 +187,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'expenses' && (
+        {activeTab === 'expenses' && currentRole === 'admin' && (
           <ExpensesModule
             currentRole={currentRole}
             selectedMonth={selectedMonth}

@@ -50,73 +50,52 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Switcher */}
+          {/* Role Switcher or Resident Static Badge */}
           <div className="flex items-center space-x-3">
-            <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
-              <button
-                onClick={() => {
-                  setRole('admin');
-                  if (activeTab === 'my-flat') setActiveTab('dashboard');
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentRole === 'admin'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>👑</span>
-                <span>Admin</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setRole('user');
-                  setActiveTab('my-flat');
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentRole === 'user'
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>🏠</span>
-                <span>Resident</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setRole('watchman');
-                  setActiveTab('water-meter');
-                }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  currentRole === 'watchman'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Shield size={14} />
-                <span>Watchman</span>
-              </button>
-            </div>
-
-            {/* Resident Flat Picker (when in User role) */}
-            {currentRole === 'user' && (
-              <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-xl">
-                <span className="text-xs font-medium text-emerald-800">My Flat:</span>
-                <select
-                  value={selectedFlat}
-                  onChange={(e) => setSelectedFlat(Number(e.target.value))}
-                  className="bg-white border border-emerald-300 text-xs rounded-lg px-2 py-1 font-bold text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            {currentRole !== 'user' ? (
+              <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
+                <button
+                  onClick={() => {
+                    setRole('admin');
+                    if (activeTab === 'my-flat') setActiveTab('dashboard');
+                  }}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentRole === 'admin'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  {flatsList.map(f => (
-                    <option key={f} value={f}>Flat {f}</option>
-                  ))}
-                </select>
+                  <span>👑</span>
+                  <span>Admin</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setRole('watchman');
+                    setActiveTab('water-meter');
+                  }}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    currentRole === 'watchman'
+                      ? 'bg-purple-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Shield size={14} />
+                  <span>Watchman</span>
+                </button>
+              </div>
+            ) : (
+              /* Resident Flat Label - Static, no dropdown */
+              <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs font-black text-emerald-900 tracking-wide">
+                  🏠 Flat {selectedFlat}
+                </span>
               </div>
             )}
 
             {/* Month Selector */}
-            <div className="hidden sm:flex items-center space-x-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
+            <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
               <Calendar size={14} className="text-slate-500" />
               <select
                 value={selectedMonth}
@@ -133,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 onClick={onLogout}
                 title="Log out of current role"
-                className="px-2.5 py-1 text-xs font-bold text-slate-500 hover:text-rose-600 border border-slate-200 rounded-xl hover:bg-rose-50 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl hover:bg-rose-50 transition-colors"
               >
                 Logout
               </button>
@@ -193,9 +172,10 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {currentRole === 'user' && (
           <>
-            <MobileTabBtn id="my-flat" label={`Flat ${selectedFlat}`} icon={<Receipt size={18} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
-            <MobileTabBtn id="water-meter" label="My Water" icon={<Droplet size={18} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
-            <MobileTabBtn id="monthly-statement" label="Society" icon={<Calendar size={18} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
+            <MobileTabBtn id="my-flat" label={`Dashboard`} icon={<Building size={18} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
+            <MobileTabBtn id="resident-history" label="History" icon={<Receipt size={18} />} active={activeTab === 'resident-history'} onClick={setActiveTab} />
+            <MobileTabBtn id="water-meter" label="Water" icon={<Droplet size={18} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
+            <MobileTabBtn id="monthly-statement" label="Statements" icon={<Calendar size={18} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
             <MobileTabBtn id="directory" label="Contacts" icon={<Phone size={18} />} active={activeTab === 'directory'} onClick={setActiveTab} />
           </>
         )}

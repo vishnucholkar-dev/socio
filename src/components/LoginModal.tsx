@@ -11,7 +11,7 @@ interface LoginModalProps {
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, flatsList }) => {
   const [roleTab, setRoleTab] = useState<UserRole>('user');
-  const [selectedFlat, setSelectedFlat] = useState<number>(flatsList[0] || 101);
+  const [flatNumberInput, setFlatNumberInput] = useState<string>('101');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -48,20 +48,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         setError('Invalid Watchman PIN. Default PIN is "1234".');
       }
     } else {
-      // Flat Owner verification (default: flat number e.g. 101 or rockcliff101)
-      const expected1 = String(selectedFlat);
-      const expected2 = `rockcliff${selectedFlat}`;
+      // Flat Owner verification
+      const parsedFlat = parseInt(flatNumberInput.trim(), 10);
+      if (!Number.isFinite(parsedFlat) || !flatsList.includes(parsedFlat)) {
+        setError(`Please enter a valid Rockcliff flat number (e.g. 101-108, 201-208, 301-308, 401-408).`);
+        return;
+      }
+
+      const expected1 = String(parsedFlat);
+      const expected2 = `rockcliff${parsedFlat}`;
       if (pin.trim() === expected1 || pin.trim().toLowerCase() === expected2 || pin.trim() === '1234') {
         const session: AuthSession = {
           role: 'user',
-          flatNumber: selectedFlat,
-          username: `Flat ${selectedFlat} Owner`,
+          flatNumber: parsedFlat,
+          username: `Flat ${parsedFlat} Owner`,
           loggedInAt: new Date().toISOString()
         };
         saveSession(session);
         onLoginSuccess(session);
       } else {
-        setError(`Invalid PIN for Flat ${selectedFlat}. Default PIN is your flat number ("${selectedFlat}") or "1234".`);
+        setError(`Invalid PIN for Flat ${parsedFlat}. Default PIN is your flat number ("${parsedFlat}") or "1234".`);
       }
     }
   };
@@ -112,17 +118,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
           {roleTab === 'user' && (
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Select Your Flat Number
+                Enter Your Flat Number
               </label>
-              <select
-                value={selectedFlat}
-                onChange={(e) => { setSelectedFlat(Number(e.target.value)); setError(null); }}
+              <input
+                type="number"
+                inputMode="numeric"
+                value={flatNumberInput}
+                onChange={(e) => { setFlatNumberInput(e.target.value); setError(null); }}
+                placeholder="e.g. 101, 204, 408"
+                required
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none"
-              >
-                {flatsList.map(f => (
-                  <option key={f} value={f}>Flat {f} (Floor {Math.floor(f / 100)})</option>
-                ))}
-              </select>
+              />
+              <p className="text-[10px] text-slate-400 mt-1">32 flats across Floors 1–4 (101-108, 201-208, 301-308, 401-408)</p>
             </div>
           )}
 
@@ -134,7 +141,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
               type="password"
               value={pin}
               onChange={(e) => { setPin(e.target.value); setError(null); }}
-              placeholder={roleTab === 'user' ? `Default: ${selectedFlat} or 1234` : roleTab === 'admin' ? 'Default: admin or 1234' : 'Default: 1234'}
+              placeholder={roleTab === 'user' ? `Default: ${flatNumberInput || '101'} or 1234` : roleTab === 'admin' ? 'Default: admin or 1234' : 'Default: 1234'}
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none"
             />
