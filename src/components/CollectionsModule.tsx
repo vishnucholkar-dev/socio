@@ -243,44 +243,60 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
               }`}
             >
               {/* Header: Flat # & Status Badge */}
-              <div className="flex items-center justify-between">
-                <span className="text-base font-black text-slate-900">
-                  Flat {flat.flat}
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    isPaid
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : flat.paid > 0
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-rose-100 text-rose-800'
-                  }`}
-                >
-                  {isPaid ? 'Paid' : flat.paid > 0 ? 'Partial' : 'Due'}
-                </span>
-              </div>
+              {(() => {
+                const waterFlat = currentWater?.flats.find(wf => wf.flat === flat.flat);
+                const baseMaint = waterFlat?.mandatory_maintenance || 1400;
+                const waterCost = waterFlat ? waterFlat.water_charge : Math.max(0, flat.actual - baseMaint);
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-black text-slate-900">
+                        Flat {flat.flat}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                          isPaid
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : flat.paid > 0
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}
+                      >
+                        {isPaid ? 'Paid' : flat.paid > 0 ? 'Partial' : 'Due'}
+                      </span>
+                    </div>
 
-              {/* Amount Breakdown */}
-              <div className="mt-3 space-y-1.5 text-xs">
-                <div className="flex justify-between text-slate-500">
-                  <span>Actual Bill:</span>
-                  <span className="font-semibold text-slate-800 font-mono">{formatINR(flat.actual)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Paid:</span>
-                  <span className="font-semibold text-emerald-600 font-mono">{formatINR(flat.paid)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-100">
-                  <span className="font-medium text-slate-700">Pending:</span>
-                  <span className={`font-bold font-mono ${flat.pending > 1 ? 'text-rose-600' : 'text-slate-400'}`}>
-                    {formatINR(flat.pending)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[11px] text-slate-400">
-                  <span>Mode:</span>
-                  <span className="font-medium text-slate-600">{flat.receipts?.length ? `${flat.receipts.length} receipt(s)` : flat.mode || 'N/A'}</span>
-                </div>
-              </div>
+                    {/* Amount Breakdown */}
+                    <div className="mt-3 space-y-1.5 text-xs">
+                      <div className="flex justify-between items-baseline text-slate-500">
+                        <span>Actual Bill:</span>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-900 font-mono text-sm">{formatINR(flat.actual)}</span>
+                          {waterCost > 0 && (
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              ₹{baseMaint.toLocaleString('en-IN')} base + {formatINR(waterCost)} water
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-slate-500">
+                        <span>Paid:</span>
+                        <span className="font-semibold text-emerald-600 font-mono">{formatINR(flat.paid)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-100">
+                        <span className="font-medium text-slate-700">Pending:</span>
+                        <span className={`font-bold font-mono ${flat.pending > 1 ? 'text-rose-600' : 'text-slate-400'}`}>
+                          {formatINR(flat.pending)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-400">
+                        <span>Mode:</span>
+                        <span className="font-medium text-slate-600">{flat.receipts?.length ? `${flat.receipts.length} receipt(s)` : flat.mode || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               {/* Action Buttons */}
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 no-print">

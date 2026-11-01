@@ -538,6 +538,36 @@ runTest('Multiple cycles can be open concurrently and route transactions with da
   assert(octFlat101.receipts.some(r => r.amount === 1000 && r.date === '2026-10-01'));
 });
 
+// 13. OCTOBER 2026 VERIFIED BENCHMARK & FLAT 405 RECONCILIATION
+runTest('October 2026 maintains verified society benchmark numbers (Flat 405: 1400 base + 1376 water = 2776)', () => {
+  const data = storage.getApartmentData();
+  const octMaint = data.maintenance_statements.find(s => s.sheet_name.includes('October 2026'));
+  const octWater = data.water_statements.find(s => s.sheet_name.includes('October 2026'));
+
+  assert(octWater, 'October 2026 water statement exists');
+  assert(octMaint, 'October 2026 maintenance statement exists');
+
+  assert.strictEqual(octWater.tanker_bill, 32400.0, 'October tanker bill must be 32,400');
+  assert.strictEqual(octWater.electricity_bill, 18214.0, 'October electricity bill must be 18,214');
+  assert.strictEqual(octWater.net_electricity, 12214.0, 'Net power must be 18,214 - 6,000 = 12,214');
+  assert.strictEqual(octWater.total_water_consumption_liters, 534641.0, 'Total water consumption must be 534,641 L');
+
+  const f405Water = octWater.flats.find(f => f.flat === 405);
+  const f405Maint = octMaint.flats.find(f => f.flat === 405);
+
+  assert(f405Water && f405Maint, 'Flat 405 exists in October statements');
+  assert.strictEqual(f405Water.opening_reading, 443052.0, 'Flat 405 opening reading baseline');
+  assert.strictEqual(f405Water.closing_reading, 459540.0, 'Flat 405 closing reading');
+  assert.strictEqual(f405Water.liters, 16488.0, 'Flat 405 consumed liters');
+  assert.strictEqual(f405Water.mandatory_maintenance, 1400.0, 'Flat 405 base maintenance is 1400');
+  assert.strictEqual(f405Water.water_charge, 1375.87, 'Flat 405 water charge is 1375.87 (~1376)');
+  assert.strictEqual(f405Water.actual_amount, 2775.87, 'Flat 405 total assessment is 2775.87 (~2776)');
+  assert.strictEqual(f405Maint.actual, 2775.87, 'Flat 405 maintenance actual bill must match water actual amount');
+
+  const totalBilled = octMaint.flats.reduce((sum, f) => sum + f.actual, 0);
+  assert.strictEqual(totalBilled, 89414.0, 'October 2026 total society billed maintenance must be 89,414');
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

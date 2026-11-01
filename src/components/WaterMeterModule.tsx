@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WaterStatement, UserRole, FlatWaterData, CycleStatus } from '../types/apartment';
+import { WaterStatement, UserRole, FlatWaterData, CycleStatus, MaintenanceStatement } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
 import { formatINR, formatINRExact, formatLiters, calculateWaterBilling } from '../services/calculations';
 import { Droplet, Calendar, AlertCircle, CheckCircle2, Plus, ArrowRight, Printer } from './Icons';
@@ -8,6 +8,7 @@ interface WaterMeterModuleProps {
   currentRole: UserRole;
   selectedMonth: string;
   allWaterStatements: WaterStatement[];
+  allMaintenanceStatements?: MaintenanceStatement[];
   cycleStatus?: CycleStatus;
   selectedFlat: number;
   onSaveStatement: (statement: WaterStatement) => boolean;
@@ -19,6 +20,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   currentRole,
   selectedMonth,
   allWaterStatements,
+  allMaintenanceStatements,
   cycleStatus = 'legacy-closed',
   selectedFlat,
   onSaveStatement,
@@ -28,11 +30,24 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   // Never substitute another month's statement when the selected month is missing.
   const matchingStatements = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
   const currentStatement = matchingStatements.length === 1 ? matchingStatements[0] : undefined;
+  const currentMaint = allMaintenanceStatements?.find(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const canEdit = cycleStatus === 'open' && currentRole !== 'user' && matchingStatements.length === 1;
 
+  // Derive tanker and electricity expenses directly from current cycle's maintenance statement
+  const cycleExpenses = currentMaint?.expenses || [];
+  const expenseTankerTotal = cycleExpenses
+    .filter(e => (e.category || '').toLowerCase().includes('tanker') || e.description.toLowerCase().includes('tanker'))
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+  const expenseElecTotal = cycleExpenses
+    .filter(e => (e.category || '').toLowerCase().includes('electric') || (e.category || '').toLowerCase().includes('power') || e.description.toLowerCase().includes('electricity'))
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const initialTanker = expenseTankerTotal > 0 ? expenseTankerTotal : (currentStatement?.tanker_bill || 0);
+  const initialElec = expenseElecTotal > 0 ? expenseElecTotal : (currentStatement?.electricity_bill || 0);
+
   const [isEditing, setIsEditing] = useState(false);
-  const [tankerBill, setTankerBill] = useState(currentStatement?.tanker_bill || 0);
-  const [electricityBill, setElectricityBill] = useState(currentStatement?.electricity_bill || 0);
+  const [tankerBill, setTankerBill] = useState(initialTanker);
+  const [electricityBill, setElectricityBill] = useState(initialElec);
   const [commonUtil, setCommonUtil] = useState(currentStatement?.common_utilization || 6000);
   const [mandatoryMaint, setMandatoryMaint] = useState(currentStatement?.mandatory_maintenance || 1400);
   const [days, setDays] = useState(currentStatement?.days || 30);
@@ -50,11 +65,11 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   const [mobileWalkthrough, setMobileWalkthrough] = useState(false);
   const [flatByFlatIndex, setFlatByFlatIndex] = useState(0);
 
-  // Sync state if statement changes
+  // Sync state if statement changes or maintenance expenses update
   React.useEffect(() => {
     if (currentStatement) {
-      setTankerBill(currentStatement.tanker_bill);
-      setElectricityBill(currentStatement.electricity_bill);
+      setTankerBill(initialTanker);
+      setElectricityBill(initialElec);
       setCommonUtil(currentStatement.common_utilization);
       setMandatoryMaint(currentStatement.mandatory_maintenance);
       setDays(currentStatement.days);
@@ -65,7 +80,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
       setReadings(map);
       setIsEditing(false);
     }
-  }, [currentStatement?.sheet_name]);
+  }, [currentStatement?.sheet_name, expenseTankerTotal, expenseElecTotal]);
 
   React.useEffect(() => {
     if (!canEdit) setIsEditing(false);
@@ -301,7 +316,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
           ) : (
             <p className="text-lg font-bold text-slate-900 mt-1">{formatINR(tankerBill)}</p>
           )}
-          <p className="text-[10px] text-slate-400 mt-0.5">Water tankers bought</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{expenseTankerTotal > 0 ? 'Synced from expenses' : 'Water tankers bought'}</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -316,7 +331,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
           ) : (
             <p className="text-lg font-bold text-slate-900 mt-1">{formatINR(electricityBill)}</p>
           )}
-          <p className="text-[10px] text-slate-400 mt-0.5">Total power bill</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">{expenseElecTotal > 0 ? 'Synced from expenses' : 'Total power bill'}</p>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">

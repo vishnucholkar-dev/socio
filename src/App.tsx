@@ -173,6 +173,7 @@ export const App: React.FC = () => {
             currentRole={currentRole}
             selectedMonth={selectedMonth}
             allWaterStatements={data.water_statements}
+            allMaintenanceStatements={data.maintenance_statements}
             selectedFlat={selectedFlat}
             onSaveStatement={handleSaveWaterStatement}
             cycleStatus={selectedCycleStatus}
