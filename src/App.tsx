@@ -14,6 +14,7 @@ import {
   updateBalanceTransfer,
   deleteBalanceTransfer,
   saveWaterStatement,
+  saveSingleFlatWaterReading,
   closeCycle,
   openNextCycle,
   reopenCycle,
@@ -65,6 +66,21 @@ export const App: React.FC = () => {
   const selectedCycleLabel = availableMonths.find(month => sameCalendarMonth(month, selectedMonth));
   const selectedCycleStatus = selectedCycleLabel ? data.cycles[selectedCycleLabel]?.status : undefined;
 
+  const currentCycleIdx = availableMonths.findIndex(l => sameCalendarMonth(l, selectedMonth));
+  const priorCycleLabel = currentCycleIdx > 0 ? availableMonths[currentCycleIdx - 1] : null;
+  const isPriorCycleClosed = priorCycleLabel ? data.cycles?.[priorCycleLabel]?.status === 'closed' : false;
+
+  const nextCycleLabel = currentCycleIdx >= 0 && currentCycleIdx < availableMonths.length - 1 ? availableMonths[currentCycleIdx + 1] : null;
+  const nextMaint = nextCycleLabel ? data.maintenance_statements.find(m => sameCalendarMonth(m.sheet_name, nextCycleLabel)) : null;
+  const nextHasActivity = Boolean(
+    nextMaint && (
+      nextMaint.expenses.length > 0 ||
+      nextMaint.inflows.length > 0 ||
+      nextMaint.flats.some(f => f.paid > 0)
+    )
+  );
+  const allowOpenAction = currentRole === 'admin' && !nextHasActivity && currentCycleIdx === availableMonths.length - 1;
+
   // Sync state with storage updates
   useEffect(() => {
     const handleDataChange = (e: any) => {
@@ -96,6 +112,8 @@ export const App: React.FC = () => {
   const handleDeleteTransfer = (month: string, id: string) => runAction(() => deleteBalanceTransfer(month, id));
 
   const handleSaveWaterStatement = (statement: WaterStatement) => runAction(() => saveWaterStatement(statement));
+  const handleSaveSingleReading = (monthSheet: string, flatNumber: number, closingReading: number) =>
+    runAction(() => saveSingleFlatWaterReading(monthSheet, flatNumber, closingReading));
   const handleCloseCycle = (month: string, note: string) => runAction(() => closeCycle(month, note));
   const handleOpenNext = (month: string) => runAction(() => openNextCycle(month));
   const handleReopenCycle = (month: string, reason: string) => runAction(() => reopenCycle(month, reason));
@@ -176,9 +194,12 @@ export const App: React.FC = () => {
             allMaintenanceStatements={data.maintenance_statements}
             selectedFlat={selectedFlat}
             onSaveStatement={handleSaveWaterStatement}
+            onSaveSingleReading={handleSaveSingleReading}
             cycleStatus={selectedCycleStatus}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenCycle={handleOpenCycle}
+            priorCycleClosed={isPriorCycleClosed}
+            allowOpenAction={allowOpenAction}
           />
         )}
 
@@ -213,6 +234,7 @@ export const App: React.FC = () => {
             cycleStatus={selectedCycleStatus}
             openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
             onOpenCycle={handleOpenCycle}
+            allowOpenAction={allowOpenAction}
           />
         )}
 
@@ -220,6 +242,7 @@ export const App: React.FC = () => {
           <ResidentHistory
             selectedFlat={selectedFlat}
             allMaintenanceStatements={data.maintenance_statements}
+            allWaterStatements={data.water_statements}
           />
         )}
 
@@ -291,6 +314,7 @@ export const App: React.FC = () => {
         onImportBackup={(jsonContent) => {
           runAction(() => importApartmentDataBackup(jsonContent));
         }}
+        flatsList={data.flats}
       />
 
       {/* Mobile Floating Action Button to Toggle Role or Settings */}

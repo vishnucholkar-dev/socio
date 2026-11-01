@@ -20,6 +20,7 @@ interface ExpensesModuleProps {
   cycleStatus?: CycleStatus;
   openCycles?: string[];
   onOpenCycle?: (month: string) => void;
+  allowOpenAction?: boolean;
 }
 
 const PRESET_EXPENSE_CATEGORIES = [
@@ -80,7 +81,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   onDeleteTransfer,
   cycleStatus = 'legacy-closed',
   openCycles,
-  onOpenCycle
+  onOpenCycle,
+  allowOpenAction = false
 }) => {
   const matchingStatements = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentStatement = matchingStatements.length === 1 ? matchingStatements[0] : undefined;
@@ -277,31 +279,37 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   return (
     <div className="space-y-6">
       {cycleStatus !== 'open' && (
-        <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
-          <div>
-            <span className="font-bold block">
-              {cycleStatus === 'initialization-required'
-                ? 'This cycle is awaiting admin activation.'
-                : cycleStatus === 'legacy-closed'
-                ? 'This cycle is locked as historical legacy data.'
-                : `This cycle is currently ${cycleStatus}.`}
-            </span>
-            <span className="text-xs text-amber-800">
-              {currentRole === 'admin'
-                ? 'Click the button on the right to open this cycle and enable adding expenses and inflows.'
-                : 'Financial entries are currently in read-only mode.'}
-            </span>
-          </div>
+        allowOpenAction && onOpenCycle && currentRole === 'admin' ? (
+          <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
+            <div>
+              <span className="font-bold block">
+                This cycle is currently awaiting activation.
+              </span>
+              <span className="text-xs text-amber-800">
+                Click the button on the right to open this cycle and enable adding expenses and inflows.
+              </span>
+            </div>
 
-          {currentRole === 'admin' && onOpenCycle && (
             <button
               onClick={() => onOpenCycle(selectedMonth)}
               className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm whitespace-nowrap active:scale-95 transition-all"
             >
               🚀 Open Cycle & Enable Editing
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 shadow-2xs flex items-center space-x-3 text-slate-700">
+            <span className="p-2 bg-slate-200/70 rounded-xl text-slate-700 text-sm">🔒</span>
+            <div>
+              <p className="text-xs font-bold text-slate-900">
+                {selectedMonth} is Finalized & Closed
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                All financial records, receipts, and inflows for this period are safely locked and archived.
+              </p>
+            </div>
+          </div>
+        )
       )}
       {matchingStatements.length > 1 && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">Duplicate statements exist for this calendar month. Financial edits are disabled.</div>}
       {/* Liquidity & Balance Overview */}

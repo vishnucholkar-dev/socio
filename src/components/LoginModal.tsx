@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserRole, AuthSession } from '../types/apartment';
-import { saveSession } from '../services/auth';
+import { saveSession, verifyAdminPassword, verifyWatchmanPin, verifyFlatPin } from '../services/auth';
 import { Shield, AlertCircle } from './Icons';
 
 interface LoginModalProps {
@@ -22,8 +22,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
     setError(null);
 
     if (roleTab === 'admin') {
-      // Admin verification (default admin / admin)
-      if (pin.trim().toLowerCase() === 'admin' || pin.trim() === '1234') {
+      if (verifyAdminPassword(pin)) {
         const session: AuthSession = {
           role: 'admin',
           username: 'Administrator',
@@ -35,8 +34,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         setError('Invalid Admin credentials. Default password is "admin" or "1234".');
       }
     } else if (roleTab === 'watchman') {
-      // Watchman verification (default 1234 or watchman)
-      if (pin.trim() === '1234' || pin.trim().toLowerCase() === 'watchman') {
+      if (verifyWatchmanPin(pin)) {
         const session: AuthSession = {
           role: 'watchman',
           username: 'Building Watchman (Laxman)',
@@ -55,9 +53,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         return;
       }
 
-      const expected1 = String(parsedFlat);
-      const expected2 = `rockcliff${parsedFlat}`;
-      if (pin.trim() === expected1 || pin.trim().toLowerCase() === expected2 || pin.trim() === '1234') {
+      if (verifyFlatPin(parsedFlat, pin)) {
         const session: AuthSession = {
           role: 'user',
           flatNumber: parsedFlat,

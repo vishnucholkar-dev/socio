@@ -3,6 +3,7 @@ import { WaterStatement, UserRole, FlatWaterData, CycleStatus, MaintenanceStatem
 import { sameCalendarMonth } from '../services/storage';
 import { formatINR, formatINRExact, formatLiters, calculateWaterBilling } from '../services/calculations';
 import { Droplet, Calendar, AlertCircle, CheckCircle2, Plus, ArrowRight, Printer } from './Icons';
+import { WaterMeterPdfExport } from './WaterMeterPdfExport';
 
 interface WaterMeterModuleProps {
   currentRole: UserRole;
@@ -12,9 +13,23 @@ interface WaterMeterModuleProps {
   cycleStatus?: CycleStatus;
   selectedFlat: number;
   onSaveStatement: (statement: WaterStatement) => boolean;
+  onSaveSingleReading?: (monthSheet: string, flatNumber: number, closingReading: number) => boolean;
   onOpenSettings?: () => void;
   onOpenCycle?: (month: string) => void;
+  priorCycleClosed?: boolean;
+  allowOpenAction?: boolean;
 }
+
+const RISER_ORDER = [
+  101, 201, 301, 401,
+  102, 202, 302, 402,
+  103, 203, 303, 403,
+  104, 204, 304, 404,
+  105, 205, 305, 405,
+  106, 206, 306, 406,
+  107, 207, 307, 407,
+  108, 208, 308, 408
+];
 
 export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   currentRole,
@@ -24,8 +39,11 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   cycleStatus = 'legacy-closed',
   selectedFlat,
   onSaveStatement,
+  onSaveSingleReading,
   onOpenSettings,
-  onOpenCycle
+  onOpenCycle,
+  priorCycleClosed = false,
+  allowOpenAction = false
 }) => {
   // Never substitute another month's statement when the selected month is missing.
   const matchingStatements = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
@@ -63,6 +81,8 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   const [watchmanSavedMsg, setWatchmanSavedMsg] = useState(false);
   const [activeFloor, setActiveFloor] = useState<number | 'all'>('all');
   const [mobileWalkthrough, setMobileWalkthrough] = useState(false);
+  const [walkSequence, setWalkSequence] = useState<'riser' | 'ascending'>('riser');
+  const [showPdfExport, setShowPdfExport] = useState(false);
   const [flatByFlatIndex, setFlatByFlatIndex] = useState(0);
 
   // Sync state if statement changes or maintenance expenses update
@@ -162,31 +182,37 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   return (
     <div className="space-y-6">
       {cycleStatus !== 'open' && (
-        <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
-          <div>
-            <span className="font-bold block">
-              {cycleStatus === 'initialization-required'
-                ? 'This cycle is awaiting admin activation.'
-                : cycleStatus === 'legacy-closed'
-                ? 'This cycle is locked as historical legacy data.'
-                : `This cycle is currently ${cycleStatus}.`}
-            </span>
-            <span className="text-xs text-amber-800">
-              {currentRole === 'admin'
-                ? 'Click the button on the right to open this cycle and enable editing meter readings and bills.'
-                : 'Meter readings and financial entries are currently in read-only mode.'}
-            </span>
-          </div>
+        allowOpenAction && onOpenCycle && currentRole === 'admin' ? (
+          <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
+            <div>
+              <span className="font-bold block">
+                This cycle is currently awaiting activation.
+              </span>
+              <span className="text-xs text-amber-800">
+                Click the button on the right to open this cycle and enable editing meter readings and bills.
+              </span>
+            </div>
 
-          {currentRole === 'admin' && onOpenCycle && (
             <button
               onClick={() => onOpenCycle(selectedMonth)}
               className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm whitespace-nowrap active:scale-95 transition-all"
             >
               🚀 Open Cycle & Enable Editing
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 shadow-2xs flex items-center space-x-3 text-slate-700">
+            <span className="p-2 bg-slate-200/70 rounded-xl text-slate-700 text-sm">🔒</span>
+            <div>
+              <p className="text-xs font-bold text-slate-900">
+                {selectedMonth} is Finalized & Closed
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                All financial records, receipts, and meter readings for this period are safely locked and archived.
+              </p>
+            </div>
+          </div>
+        )
       )}
       {matchingStatements.length > 1 && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">Duplicate water statements were found for this calendar month; editing is disabled until duplicates are reconciled.</div>}
       {/* Title & Actions Bar */}
@@ -241,11 +267,12 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
           )}
 
           <button
-            onClick={() => window.print()}
-            className="flex items-center space-x-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all"
+            type="button"
+            onClick={() => setShowPdfExport(true)}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 shadow-2xs transition-all active:scale-95"
           >
-            <Printer size={15} />
-            <span>Print Sheet</span>
+            <span>📄</span>
+            <span>PDF Export</span>
           </button>
         </div>
       </div>
@@ -410,7 +437,14 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
 
       {/* Flat-by-Flat Step-by-Step Walkthrough Wizard */}
       {mobileWalkthrough && (() => {
-        const sortedFlats = [...displayFlats].sort((a, b) => a.flat - b.flat);
+        const sortedFlats = walkSequence === 'riser'
+          ? [...displayFlats].sort((a, b) => {
+              const idxA = RISER_ORDER.indexOf(a.flat);
+              const idxB = RISER_ORDER.indexOf(b.flat);
+              return (idxA >= 0 ? idxA : a.flat) - (idxB >= 0 ? idxB : b.flat);
+            })
+          : [...displayFlats].sort((a, b) => a.flat - b.flat);
+
         const currentFlat = sortedFlats[flatByFlatIndex] || sortedFlats[0];
         if (!currentFlat) return null;
         const currentClosing = readings[currentFlat.flat]?.closing ?? currentFlat.closing_reading;
@@ -420,9 +454,34 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
 
         return (
           <div className="space-y-4">
-            {/* Flat Selector Strip */}
-            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Select Apartment (101 to 408)</p>
+            {/* Flat Selector Strip with Sequence Toggle */}
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 pb-2 border-b border-slate-100">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Select Apartment (101 to 408)</p>
+                <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl w-fit">
+                  <button
+                    type="button"
+                    onClick={() => { setWalkSequence('riser'); setFlatByFlatIndex(0); }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      walkSequence === 'riser' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Plumbing riser sequence: 101, 201, 301, 401..."
+                  >
+                    Vertical Riser (101, 201...)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setWalkSequence('ascending'); setFlatByFlatIndex(0); }}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                      walkSequence === 'ascending' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="Flat number ascending sequence: 101, 102, 103..."
+                  >
+                    Flat Ascending (101, 102...)
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none">
                 {sortedFlats.map((f, idx) => {
                   const c = readings[f.flat]?.closing ?? f.closing_reading;
@@ -460,7 +519,9 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                   </div>
                   <div>
                     <h3 className="text-xl font-black text-slate-900">Apartment {currentFlat.flat}</h3>
-                    <p className="text-xs text-slate-500">Floor {Math.floor(currentFlat.flat / 100)} • Flat {flatByFlatIndex + 1} of {sortedFlats.length}</p>
+                    <p className="text-xs text-slate-500">
+                      Floor {Math.floor(currentFlat.flat / 100)} • Flat {flatByFlatIndex + 1} of {sortedFlats.length} ({walkSequence === 'riser' ? 'Riser Order' : 'Ascending Order'})
+                    </p>
                   </div>
                 </div>
 
@@ -502,26 +563,48 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                   )}
                 </div>
 
-                {/* Calculation Feedback */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] text-slate-500 font-medium">Water Consumed</p>
-                    <p className="text-lg font-bold font-mono text-purple-700 mt-0.5">{formatLiters(currentDiff)}</p>
-                    <p className="text-[10px] text-slate-400">({Math.round(currentDiff / days)} L/day)</p>
-                  </div>
+                {/* 5 Metric Calculation Boxes */}
+                {(() => {
+                  const pendingArrears = priorCycleClosed ? (currentFlat.pending_amount || 0) : 0;
+                  const totalPayableWithArrears = currentFlat.actual_amount + pendingArrears;
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                        <p className="text-[11px] text-slate-500 font-medium">Water Consumed</p>
+                        <p className="text-lg font-bold font-mono text-purple-700 mt-0.5">{formatLiters(currentDiff)}</p>
+                        <p className="text-[10px] text-slate-400">({Math.round(currentDiff / days)} L/day)</p>
+                      </div>
 
-                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
-                    <p className="text-[11px] text-slate-500 font-medium">Water Charge</p>
-                    <p className="text-lg font-bold font-mono text-slate-900 mt-0.5">{formatINR(currentFlat.water_charge)}</p>
-                    <p className="text-[10px] text-slate-400">@ {formatINRExact(displayLiterRate)}/L</p>
-                  </div>
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                        <p className="text-[11px] text-slate-500 font-medium">Water Charge</p>
+                        <p className="text-lg font-bold font-mono text-slate-900 mt-0.5">{formatINR(currentFlat.water_charge)}</p>
+                        <p className="text-[10px] text-slate-400">@ {formatINRExact(displayLiterRate)}/L</p>
+                      </div>
 
-                  <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200 col-span-2 sm:col-span-1">
-                    <p className="text-[11px] text-purple-700 font-bold">Total Month Bill</p>
-                    <p className="text-lg font-black font-mono text-purple-900 mt-0.5">{formatINR(currentFlat.actual_amount)}</p>
-                    <p className="text-[10px] text-purple-600">+ ₹{currentFlat.mandatory_maintenance} base</p>
-                  </div>
-                </div>
+                      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                        <p className="text-[11px] text-slate-500 font-medium">Month Assessment</p>
+                        <p className="text-lg font-bold font-mono text-slate-900 mt-0.5">{formatINR(currentFlat.actual_amount)}</p>
+                        <p className="text-[10px] text-slate-400">+ ₹{currentFlat.mandatory_maintenance} base</p>
+                      </div>
+
+                      <div className={`p-3 rounded-2xl border ${pendingArrears > 0 ? 'bg-rose-50/60 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className="text-[11px] text-slate-500 font-medium">Previous Pending</p>
+                        <p className={`text-lg font-bold font-mono mt-0.5 ${pendingArrears > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
+                          {formatINR(pendingArrears)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {priorCycleClosed ? 'Carried from closed cycle' : 'Prior month not closed (₹0)'}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-2xl bg-purple-50 border border-purple-200 col-span-2 sm:col-span-1">
+                        <p className="text-[11px] text-purple-700 font-bold">Total Payable</p>
+                        <p className="text-lg font-black font-mono text-purple-900 mt-0.5">{formatINR(totalPayableWithArrears)}</p>
+                        <p className="text-[10px] text-purple-600">Month + Arrears</p>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {currentError && (
                   <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-semibold flex items-center space-x-2">
@@ -531,25 +614,61 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                 )}
               </div>
 
-              {/* Navigation Controls */}
-              <div className="mt-8 pt-4 border-t border-slate-200 flex items-center justify-between gap-3">
+              {/* Navigation & Save Controls */}
+              <div className="mt-8 pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <button
                   type="button"
                   disabled={flatByFlatIndex === 0}
                   onClick={() => setFlatByFlatIndex(prev => Math.max(0, prev - 1))}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold disabled:opacity-40"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold disabled:opacity-40"
                 >
                   ← Previous Flat
                 </button>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+                  {canEdit && onSaveSingleReading && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentError) return;
+                          if (onSaveSingleReading(currentStatement.sheet_name, currentFlat.flat, currentClosing)) {
+                            setWatchmanSavedMsg(true);
+                            setTimeout(() => setWatchmanSavedMsg(false), 2000);
+                          }
+                        }}
+                        className="px-4 py-2.5 rounded-xl border border-purple-300 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold shadow-xs active:scale-95 transition-all"
+                      >
+                        Save This Flat
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentError) return;
+                          if (onSaveSingleReading(currentStatement.sheet_name, currentFlat.flat, currentClosing)) {
+                            setWatchmanSavedMsg(true);
+                            setTimeout(() => setWatchmanSavedMsg(false), 1500);
+                            if (flatByFlatIndex < sortedFlats.length - 1) {
+                              setFlatByFlatIndex(prev => prev + 1);
+                            }
+                          }
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md flex items-center space-x-1.5 active:scale-95 transition-all"
+                      >
+                        <span>Save & Next Flat</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </>
+                  )}
+
                   {canEdit && (
                     <button
                       type="button"
                       onClick={handleSave}
-                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm"
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold shadow-sm"
                     >
-                      Save All Readings
+                      Save All
                     </button>
                   )}
 
@@ -557,20 +676,12 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                     <button
                       type="button"
                       onClick={() => setFlatByFlatIndex(prev => Math.min(sortedFlats.length - 1, prev + 1))}
-                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md flex items-center space-x-1"
+                      className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center space-x-1"
                     >
-                      <span>Next Flat</span>
-                      <ArrowRight size={14} />
+                      <span>Skip</span>
+                      <ArrowRight size={13} />
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setFlatByFlatIndex(0)}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold"
-                    >
-                      Return to 101
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -715,6 +826,12 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
           </table>
         </div>
       </div>
+      )}
+      {showPdfExport && currentStatement && (
+        <WaterMeterPdfExport
+          statement={currentStatement}
+          onClose={() => setShowPdfExport(false)}
+        />
       )}
     </div>
   );

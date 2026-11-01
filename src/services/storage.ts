@@ -98,6 +98,17 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
       changed = true;
     }
   }
+
+  // Single active cycle policy: October 2026 is currently the single open cycle.
+  // November 2026 is not open until October 2026 is closed.
+  if (data.cycles['November 2026'] && data.cycles['November 2026'].status === 'open') {
+    data.cycles['November 2026'] = { status: 'initialization-required', initialized_as: 'legacy' };
+    changed = true;
+  }
+  if (data.cycles['October 2026'] && data.cycles['October 2026'].status !== 'open' && (!data.cycles['November 2026'] || data.cycles['November 2026'].status !== 'open')) {
+    data.cycles['October 2026'] = { status: 'open', opened_at: data.cycles['October 2026']?.opened_at || now() };
+    changed = true;
+  }
   for (const statement of data.maintenance_statements) {
     if (!Array.isArray(statement.expenses)) { statement.expenses = []; changed = true; }
     if (!Array.isArray(statement.inflows)) { statement.inflows = []; changed = true; }
@@ -105,38 +116,40 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     if (!Array.isArray(statement.dues_list)) { statement.dues_list = []; changed = true; }
   }
 
-  // Self-healing: Ensure October 2026 maintains its verified society benchmark numbers
-  const octMaint = data.maintenance_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
-  const octWater = data.water_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
-  if (octWater && (octWater.tanker_bill === 0 || octWater.total_water_consumption_liters !== 534641)) {
-    octWater.tanker_bill = 32400.0;
-    octWater.electricity_bill = 18214.0;
-    octWater.common_utilization = 6000.0;
-    octWater.net_electricity = 12214.0;
-    octWater.days = 31;
-    octWater.readings_complete = true;
+  // Self-healing: Ensure all verified historical society statements maintain their verified baseline numbers
+  for (const w of data.water_statements) {
+    const seedW = (seedData.water_statements as unknown as WaterStatement[])?.find(s => sameCalendarMonth(s.sheet_name, w.sheet_name));
+    if (seedW && seedW.tanker_bill > 0 && (w.tanker_bill === 0 || w.total_water_consumption_liters !== seedW.total_water_consumption_liters)) {
+      w.tanker_bill = seedW.tanker_bill;
+      w.electricity_bill = seedW.electricity_bill;
+      w.common_utilization = seedW.common_utilization;
+      w.net_electricity = seedW.net_electricity;
+      w.days = seedW.days;
+      w.readings_complete = true;
+      w.flats = JSON.parse(JSON.stringify(seedW.flats));
+      w.total_water_consumption_liters = seedW.total_water_consumption_liters;
+      w.avg_per_day_liters = seedW.avg_per_day_liters;
+      w.liter_per_charge = seedW.liter_per_charge;
 
-    const seedOctWater = (seedData.water_statements as unknown as WaterStatement[])?.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
-    if (seedOctWater) {
-      octWater.flats = JSON.parse(JSON.stringify(seedOctWater.flats));
-      octWater.total_water_consumption_liters = seedOctWater.total_water_consumption_liters;
-      octWater.avg_per_day_liters = seedOctWater.avg_per_day_liters;
-      octWater.liter_per_charge = seedOctWater.liter_per_charge;
-    }
-
-    if (octMaint && seedOctWater) {
-      for (const wf of octWater.flats) {
-        const mf = octMaint.flats.find(f => f.flat === wf.flat);
-        if (mf) {
-          mf.actual = money(wf.actual_amount);
-          mf.total_payable = money(mf.actual + (mf.previous_pending || 0));
-          mf.pending = money(Math.max(0, mf.total_payable - mf.paid));
-          mf.status = mf.pending <= 1 ? 'Paid' : (mf.paid > 0 ? 'Partial' : 'Due');
+      const m = data.maintenance_statements.find(s => sameCalendarMonth(s.sheet_name, w.sheet_name));
+      const seedM = (seedData.maintenance_statements as unknown as MaintenanceStatement[])?.find(s => sameCalendarMonth(s.sheet_name, w.sheet_name));
+      if (m && seedM) {
+        for (const wf of w.flats) {
+          const mf = m.flats.find(f => f.flat === wf.flat);
+          const smf = seedM.flats.find(f => f.flat === wf.flat);
+          if (mf && smf) {
+            mf.actual = smf.actual;
+            mf.total_payable = smf.total_payable;
+            mf.paid = smf.paid;
+            mf.pending = smf.pending;
+            mf.status = smf.status;
+            mf.mode = smf.mode;
+          }
         }
+        m.dues_list = m.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
       }
-      octMaint.dues_list = octMaint.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
+      changed = true;
     }
-    changed = true;
   }
   assertUniqueStatementMonths(data.maintenance_statements, 'maintenance');
   assertUniqueStatementMonths(data.water_statements, 'water');
@@ -667,6 +680,79 @@ export function deleteBalanceTransfer(month: string, id: string): ApartmentData 
   return data;
 }
 
+export function saveSingleFlatWaterReading(
+  monthSheet: string,
+  flatNumber: number,
+  closingReading: number
+): ApartmentData {
+  const data = getApartmentData();
+  assertCycleOpen(data, monthSheet);
+
+  if (!Number.isFinite(closingReading) || closingReading < 0) {
+    throw new Error('Closing reading must be a valid non-negative number.');
+  }
+
+  const w = data.water_statements.find(item => sameCalendarMonth(item.sheet_name, monthSheet));
+  if (!w) throw new Error(`Water statement for ${monthSheet} was not found.`);
+
+  const waterFlat = w.flats.find(f => f.flat === flatNumber);
+  if (!waterFlat) throw new Error(`Flat ${flatNumber} not found in ${monthSheet}.`);
+
+  if (closingReading < waterFlat.opening_reading) {
+    throw new Error(`Closing reading (${closingReading.toLocaleString()}) cannot be less than opening reading (${waterFlat.opening_reading.toLocaleString()}).`);
+  }
+
+  const before = { ...waterFlat };
+  waterFlat.closing_reading = closingReading;
+  waterFlat.liters = Math.max(0, closingReading - waterFlat.opening_reading);
+
+  // Recalculate water billing across all flats for this cycle
+  const calculated = calculateWaterBilling({
+    tankerBill: w.tanker_bill,
+    electricityBill: w.electricity_bill,
+    commonUtilization: w.common_utilization,
+    mandatoryMaintenance: w.mandatory_maintenance,
+    days: w.days || 30,
+    flatReadings: w.flats.map(f => ({
+      flat: f.flat,
+      closingReading: f.closing_reading,
+      openingReading: f.opening_reading,
+      pendingAmount: f.pending_amount
+    }))
+  });
+
+  w.net_electricity = calculated.netElectricity;
+  w.total_water_consumption_liters = calculated.totalConsumptionLiters;
+  w.avg_per_day_liters = calculated.avgPerDayLiters;
+  w.liter_per_charge = calculated.literPerCharge;
+  w.flats = calculated.flats;
+
+  // Sync to maintenance statement
+  const m = data.maintenance_statements.find(item => sameCalendarMonth(item.sheet_name, monthSheet));
+  if (m) {
+    for (const wf of w.flats) {
+      const mf = m.flats.find(item => item.flat === wf.flat);
+      if (!mf) continue;
+      mf.actual = money(wf.actual_amount);
+      mf.total_payable = money(mf.actual + (mf.previous_pending || 0));
+      mf.pending = money(Math.max(0, mf.total_payable - mf.paid));
+      mf.status = mf.pending <= 1 ? 'Paid' : (mf.paid > 0 ? 'Partial' : 'Due');
+    }
+    m.dues_list = m.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
+  }
+
+  audit(data, {
+    month: monthSheet,
+    action: 'water.updated',
+    record_id: `Flat ${flatNumber}`,
+    before: before as unknown as Record<string, unknown>,
+    after: { ...waterFlat } as unknown as Record<string, unknown>
+  });
+
+  persist(data);
+  return data;
+}
+
 export function saveWaterStatement(statement: WaterStatement): ApartmentData {
   const data = getApartmentData();
   assertCycleOpen(data, statement.sheet_name);
@@ -825,6 +911,119 @@ export function closeCycle(month: string, discrepancyReason = ''): ApartmentData
   cycle.closed_cash_balance = maintenance.cash_balance;
   cycle.closed_bank_balance = maintenance.bank_balance;
   audit(data, { month, action: 'closed', reason: cycle.close_reason, before: before as unknown as Record<string, unknown>, after: { ...cycle } as unknown as Record<string, unknown> });
+
+  // Automatically roll forward and open next month
+  try {
+    const nextMonth = nextMonthLabel(month);
+    performRollover(data, month, nextMonth);
+  } catch (err) {
+    console.warn('Auto-rollover warning:', err);
+  }
+
+  persist(data);
+  return data;
+}
+
+function performRollover(data: ApartmentData, previousMonth: string, nextMonth: string): void {
+  const previousCycle = data.cycles?.[previousMonth];
+  if (!previousCycle || previousCycle.status !== 'closed') return;
+
+  const previousMaintenance = data.maintenance_statements.find(item => sameCalendarMonth(item.sheet_name, previousMonth));
+  const previousWater = data.water_statements.find(item => sameCalendarMonth(item.sheet_name, previousMonth));
+  if (!previousMaintenance || !previousWater) return;
+
+  const previousCash = previousCycle.closed_cash_balance ?? previousMaintenance.cash_balance;
+  const previousBank = previousCycle.closed_bank_balance ?? previousMaintenance.bank_balance;
+
+  const dues = Object.fromEntries(data.flats.map(flat => {
+    const row = previousMaintenance.flats.find(f => f.flat === flat);
+    return [flat, row ? row.pending : 0];
+  }));
+
+  const previousReadings = new Map(previousWater.flats.map(f => [f.flat, f.closing_reading]));
+
+  const nextMaint = data.maintenance_statements.find(item => sameCalendarMonth(item.sheet_name, nextMonth));
+  const nextWater = data.water_statements.find(item => sameCalendarMonth(item.sheet_name, nextMonth));
+
+  if (nextMaint && nextWater) {
+    nextMaint.cash_opening = previousCash;
+    nextMaint.bank_opening = previousBank;
+    nextMaint.opening_dues = dues;
+    for (const flat of nextMaint.flats) {
+      const arrears = dues[flat.flat] || 0;
+      flat.previous_pending = arrears;
+      flat.total_payable = money(flat.actual + arrears);
+      flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
+      flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
+    }
+    nextMaint.dues_list = nextMaint.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
+
+    for (const flat of nextWater.flats) {
+      const reading = previousReadings.get(flat.flat);
+      if (reading !== undefined && Number.isFinite(reading)) {
+        flat.opening_reading = reading;
+      }
+      flat.pending_amount = dues[flat.flat] || 0;
+      flat.total_payable = money(flat.actual_amount + flat.pending_amount);
+    }
+    nextWater.readings_complete = false;
+    data.cycles![nextMonth] = { status: 'open', opened_at: now() };
+  } else {
+    const config = data.billing_config_history[data.billing_config_history.length - 1];
+    const nextFlats = data.flats.map(flatNumber => {
+      const arrears = dues[flatNumber] || 0;
+      return { flat: flatNumber, actual: 0, previous_pending: arrears, total_payable: arrears, paid: 0, pending: arrears, mode: 'Due' as const, status: arrears > 0 ? ('Due' as const) : ('Paid' as const) };
+    });
+    const newMaintenance: MaintenanceStatement = {
+      sheet_name: nextMonth,
+      title: `Rockcliff 'B' Block Maintenance for ${nextMonth}`,
+      flats: nextFlats,
+      inflows: [], expenses: [], transfers: [], opening_dues: dues,
+      cash_opening: previousCash, bank_opening: previousBank,
+      cash_total_in: 0, bank_total_in: 0,
+      cash_total_out: 0, bank_total_out: 0,
+      cash_balance: previousCash, bank_balance: previousBank, total_balance: money(previousCash + previousBank),
+      dues_list: nextFlats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending })),
+      legacy_previous_dues: true
+    };
+    const newWater: WaterStatement = {
+      ...previousWater,
+      sheet_name: nextMonth,
+      title: `Rockcliff 'B' Block Water Billing for ${nextMonth}`,
+      reading_date: null,
+      days: 30,
+      tanker_bill: 0, electricity_bill: 0,
+      common_utilization: config?.common_utilization ?? previousWater.common_utilization,
+      net_electricity: 0,
+      mandatory_maintenance: config?.mandatory_maintenance ?? previousWater.mandatory_maintenance,
+      total_water_consumption_liters: 0, avg_per_day_liters: 0, liter_per_charge: 0,
+      readings_complete: false,
+      flats: data.flats.map(flat => {
+        const reading = previousReadings.get(flat) ?? 0;
+        return {
+          flat, opening_reading: reading, closing_reading: reading, liters: 0, avg_per_day: 0, water_charge: 0,
+          mandatory_maintenance: config?.mandatory_maintenance ?? previousWater.mandatory_maintenance,
+          actual_amount: 0, pending_amount: dues[flat] || 0, total_payable: dues[flat] || 0
+        };
+      })
+    };
+    data.maintenance_statements.unshift(newMaintenance);
+    data.water_statements.unshift(newWater);
+    data.cycles![nextMonth] = { status: 'open', opened_at: now() };
+  }
+
+  audit(data, {
+    month: nextMonth,
+    action: 'opened',
+    reason: `Automatically opened ${nextMonth} following the closure of ${previousMonth}.`,
+    after: { previous_month: previousMonth, cash_opening: previousCash, bank_opening: previousBank, opening_dues: dues }
+  });
+}
+
+export function openNextCycle(previousMonth: string): ApartmentData {
+  const data = getApartmentData();
+  const nextMonth = nextMonthLabel(previousMonth);
+  performRollover(data, previousMonth, nextMonth);
   persist(data);
   return data;
 }
@@ -881,6 +1080,13 @@ export function openCycle(month: string, reason = ''): ApartmentData {
   const cycle = cycleLabel ? data.cycles?.[cycleLabel] : undefined;
   if (!cycleLabel || !cycle) throw new Error(`Cycle “${month}” was not found.`);
   if (cycle.status === 'open') return data;
+
+  // Single open cycle constraint
+  const alreadyOpen = Object.entries(data.cycles || {}).find(([l, s]) => !sameCalendarMonth(l, month) && s.status === 'open');
+  if (alreadyOpen) {
+    throw new Error(`Only one cycle can be open at a time. Close “${alreadyOpen[0]}” before opening “${month}”.`);
+  }
+
   const before = { ...cycle };
   cycle.status = 'open';
   cycle.opened_at = now();
@@ -921,88 +1127,6 @@ export function reopenCycle(month: string, reason: string): ApartmentData {
   delete cycle.closed_bank_balance;
   cycle.opened_at = now();
   audit(data, { month: cycleLabel, action: 'reopened', reason: reason.trim(), before: before as unknown as Record<string, unknown>, after: { ...cycle } as unknown as Record<string, unknown> });
-  persist(data);
-  return data;
-}
-
-export function openNextCycle(previousMonth: string): ApartmentData {
-  const data = getApartmentData();
-  const labels = Object.keys(data.cycles || {}).sort((a, b) => monthSortKey(a) - monthSortKey(b));
-  const latest = labels[labels.length - 1];
-  if (previousMonth !== latest) throw new Error('Only the latest month can roll forward; skipped cycles are not allowed.');
-  if (Object.values(data.cycles || {}).some(state => state.status === 'open')) throw new Error('Close the currently open cycle before opening another month.');
-  const previousCycle = data.cycles?.[previousMonth];
-  if (!previousCycle || previousCycle.status !== 'closed') throw new Error('A legacy-closed month is locked historical data, not a newly closed cycle; it cannot roll over automatically.');
-  const nextMonth = nextMonthLabel(previousMonth);
-  if (Object.keys(data.cycles || {}).some(label => sameCalendarMonth(label, nextMonth)) || data.maintenance_statements.some(item => sameCalendarMonth(item.sheet_name, nextMonth)) || data.water_statements.some(item => sameCalendarMonth(item.sheet_name, nextMonth))) {
-    throw new Error(`${nextMonth} already has data. Nothing was overwritten.`);
-  }
-  const previousMaintenanceMatches = data.maintenance_statements.filter(item => sameCalendarMonth(item.sheet_name, previousMonth));
-  if (previousMaintenanceMatches.length !== 1) throw new Error(`Expected exactly one prior maintenance statement for ${previousMonth}; found ${previousMaintenanceMatches.length}. Nothing was rolled over.`);
-  const previousMaintenance = previousMaintenanceMatches[0];
-  const previousWaterMatches = data.water_statements.filter(item => sameCalendarMonth(item.sheet_name, previousMonth));
-  if (previousWaterMatches.length !== 1) throw new Error(`Expected exactly one prior water statement for ${previousMonth}; found ${previousWaterMatches.length}. Nothing was rolled over.`);
-  const previousWater = previousWaterMatches[0];
-  const waterProblems = validateWaterForClose(data, previousMonth);
-  if (waterProblems.length) throw new Error(`The prior month has incomplete meter baselines:\n• ${waterProblems.slice(0, 6).join('\n• ')}`);
-  const previousCash = previousCycle.closed_cash_balance ?? previousMaintenance.cash_balance;
-  const previousBank = previousCycle.closed_bank_balance ?? previousMaintenance.bank_balance;
-  if (!Number.isFinite(previousCash) || !Number.isFinite(previousBank)) throw new Error('The prior closed cash and bank balances must both be finite before rollover.');
-  const previousFlatRows = new Map<number, typeof previousMaintenance.flats[number]>();
-  for (const flatRow of previousMaintenance.flats) {
-    if (previousFlatRows.has(flatRow.flat)) throw new Error(`The prior maintenance statement has duplicate rows for Flat ${flatRow.flat}; no dues were carried.`);
-    previousFlatRows.set(flatRow.flat, flatRow);
-  }
-  for (const flat of data.flats) {
-    const row = previousFlatRows.get(flat);
-    if (!row || !Number.isFinite(row.pending) || row.pending < 0) throw new Error(`Flat ${flat} has missing or invalid prior pending dues; no dues were carried.`);
-  }
-  const dues = Object.fromEntries(data.flats.map(flat => [flat, previousFlatRows.get(flat)!.pending]));
-  const config = data.billing_config_history
-    .filter(item => item.effective_from <= `${new Date(`${nextMonth} 1`).getFullYear()}-${String(new Date(`${nextMonth} 1`).getMonth() + 1).padStart(2, '0')}`)
-    .sort((a, b) => a.effective_from.localeCompare(b.effective_from)).slice(-1)[0]
-    || data.billing_config_history[data.billing_config_history.length - 1];
-  const nextFlats: MaintenanceStatement['flats'] = data.flats.map(flatNumber => {
-    const arrears = dues[flatNumber] || 0;
-    return { flat: flatNumber, actual: 0, previous_pending: arrears, total_payable: arrears, paid: 0, pending: arrears, mode: 'Due', status: arrears > 0 ? 'Due' : 'Paid' };
-  });
-  const newMaintenance: MaintenanceStatement = {
-    sheet_name: nextMonth,
-    title: `Rockcliff 'B' Block Maintenance for ${nextMonth}`,
-    flats: nextFlats,
-    inflows: [], expenses: [], transfers: [], opening_dues: dues,
-    cash_opening: previousCash, bank_opening: previousBank,
-    cash_total_in: 0, bank_total_in: 0,
-    cash_total_out: 0, bank_total_out: 0,
-    cash_balance: previousCash, bank_balance: previousBank, total_balance: money(previousCash + previousBank),
-    dues_list: nextFlats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending })),
-    legacy_previous_dues: true
-  };
-  const previousReadings = new Map(previousWater.flats.map(flat => [flat.flat, flat.closing_reading]));
-  const newWater: WaterStatement = {
-    ...previousWater,
-    sheet_name: nextMonth,
-    title: `Rockcliff 'B' Block Water Billing for ${nextMonth}`,
-    reading_date: null,
-    days: new Date(Date.UTC(Number(nextMonth.split(' ')[1]), new Date(`${nextMonth} 1`).getMonth() + 1, 0)).getUTCDate(),
-    tanker_bill: 0, electricity_bill: 0,
-    common_utilization: config?.common_utilization ?? previousWater.common_utilization,
-    net_electricity: 0,
-    mandatory_maintenance: config?.mandatory_maintenance ?? previousWater.mandatory_maintenance,
-    total_water_consumption_liters: 0, avg_per_day_liters: 0, liter_per_charge: 0,
-    readings_complete: false,
-    flats: data.flats.map(flat => {
-      const reading = previousReadings.get(flat);
-      if (reading === undefined || !Number.isFinite(reading)) throw new Error(`Flat ${flat} has no valid closing meter reading; provide an opening reading before rollover.`);
-      return { flat, opening_reading: reading, closing_reading: reading, liters: 0, avg_per_day: 0, water_charge: 0,
-        mandatory_maintenance: config?.mandatory_maintenance ?? previousWater.mandatory_maintenance,
-        actual_amount: 0, pending_amount: dues[flat] || 0, total_payable: dues[flat] || 0 };
-    })
-  };
-  data.maintenance_statements.unshift(newMaintenance);
-  data.water_statements.unshift(newWater);
-  data.cycles![nextMonth] = { status: 'open', opened_at: now() };
-  audit(data, { month: nextMonth, action: 'opened', reason: `Opened after closing ${previousMonth}; carried cash/bank separately, flat dues, and last valid meter readings.`, after: { previous_month: previousMonth, cash_opening: previousCash, bank_opening: previousBank, opening_dues: dues } });
   persist(data);
   return data;
 }

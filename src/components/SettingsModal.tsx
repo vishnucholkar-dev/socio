@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BillingConfigEntry } from '../types/apartment';
 import { formatINR } from '../services/calculations';
 import { Shield, CheckCircle2, Calendar, TrendingUp } from './Icons';
+import { changeAdminPassword, changeWatchmanPin, resetFlatPin, resetAllFlatPins } from '../services/auth';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface SettingsModalProps {
   onAddConfig: (entry: Omit<BillingConfigEntry, 'id' | 'changed_at'>) => boolean;
   onExportBackup?: () => void;
   onImportBackup?: (jsonContent: string) => void;
+  flatsList?: number[];
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -18,7 +20,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   configHistory,
   onAddConfig,
   onExportBackup,
-  onImportBackup
+  onImportBackup,
+  flatsList = []
 }) => {
   const latest = configHistory.length > 0 ? configHistory[configHistory.length - 1] : null;
 
@@ -29,6 +32,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // Password Management State
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [adminPwdMsg, setAdminPwdMsg] = useState<string | null>(null);
+  const [newWatchmanPin, setNewWatchmanPin] = useState('');
+  const [watchmanPinMsg, setWatchmanPinMsg] = useState<string | null>(null);
+  const [selectedResetFlat, setSelectedResetFlat] = useState<number>(flatsList[0] || 101);
+  const [flatResetMsg, setFlatResetMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -265,6 +276,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {importStatus}
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Security & Password Management Section */}
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <div className="flex items-center space-x-2 mb-2">
+            <span className="text-base">🔐</span>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              Security & Credentials Management
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Change your Admin password, update Watchman PIN, or reset flat owner passwords back to their default flat number.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Change Admin Password */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <span className="text-xs font-bold text-slate-800 block">Change Admin Password</span>
+              <div className="flex space-x-2">
+                <input
+                  type="password"
+                  placeholder="New Admin Password"
+                  value={newAdminPassword}
+                  onChange={(e) => setNewAdminPassword(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-mono font-bold bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      changeAdminPassword(newAdminPassword);
+                      setAdminPwdMsg('Admin password updated!');
+                      setNewAdminPassword('');
+                      setTimeout(() => setAdminPwdMsg(null), 2500);
+                    } catch (err) {
+                      setAdminPwdMsg(err instanceof Error ? err.message : 'Error');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-xl whitespace-nowrap"
+                >
+                  Save
+                </button>
+              </div>
+              {adminPwdMsg && <span className="text-[11px] font-bold text-emerald-700 block">{adminPwdMsg}</span>}
+            </div>
+
+            {/* Change Watchman PIN */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <span className="text-xs font-bold text-slate-800 block">Change Watchman PIN</span>
+              <div className="flex space-x-2">
+                <input
+                  type="password"
+                  placeholder="New 4-digit PIN (default 1234)"
+                  value={newWatchmanPin}
+                  onChange={(e) => setNewWatchmanPin(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-mono font-bold bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      changeWatchmanPin(newWatchmanPin);
+                      setWatchmanPinMsg('Watchman PIN updated!');
+                      setNewWatchmanPin('');
+                      setTimeout(() => setWatchmanPinMsg(null), 2500);
+                    } catch (err) {
+                      setWatchmanPinMsg(err instanceof Error ? err.message : 'Error');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-xl whitespace-nowrap"
+                >
+                  Save
+                </button>
+              </div>
+              {watchmanPinMsg && <span className="text-[11px] font-bold text-emerald-700 block">{watchmanPinMsg}</span>}
+            </div>
+
+            {/* Reset Flat Owner Password */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 md:col-span-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-xs font-bold text-slate-800 block">Reset Flat Owner Password</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Reset ALL 32 flat owner passwords back to their default flat numbers?')) {
+                      resetAllFlatPins();
+                      setFlatResetMsg('All 32 flat owner passwords reset to default (flat number)!');
+                      setTimeout(() => setFlatResetMsg(null), 3000);
+                    }
+                  }}
+                  className="text-[11px] text-rose-700 font-bold hover:underline"
+                >
+                  Reset All 32 Flats to Default
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <select
+                  value={selectedResetFlat}
+                  onChange={(e) => setSelectedResetFlat(Number(e.target.value))}
+                  className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-white"
+                >
+                  {flatsList.map(f => <option key={f} value={f}>Flat {f}</option>)}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetFlatPin(selectedResetFlat);
+                    setFlatResetMsg(`Flat ${selectedResetFlat} password reset to "${selectedResetFlat}"!`);
+                    setTimeout(() => setFlatResetMsg(null), 2500);
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xs"
+                >
+                  Reset Flat {selectedResetFlat} to Default
+                </button>
+              </div>
+              {flatResetMsg && <span className="text-[11px] font-bold text-emerald-700 block">{flatResetMsg}</span>}
+            </div>
           </div>
         </div>
       </div>

@@ -50,39 +50,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Switcher or Resident Static Badge */}
+          {/* Role Status or Resident Static Badge */}
           <div className="flex items-center space-x-3">
-            {currentRole !== 'user' ? (
-              <div className="bg-slate-100 p-1 rounded-xl flex items-center border border-slate-200">
-                <button
-                  onClick={() => {
-                    setRole('admin');
-                    if (activeTab === 'my-flat') setActiveTab('dashboard');
-                  }}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    currentRole === 'admin'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>👑</span>
-                  <span>Admin</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setRole('watchman');
-                    setActiveTab('water-meter');
-                  }}
-                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    currentRole === 'watchman'
-                      ? 'bg-purple-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Shield size={14} />
-                  <span>Watchman</span>
-                </button>
+            {currentRole === 'admin' ? (
+              <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                <span className="text-xs font-black text-blue-900 tracking-wide">
+                  👑 Admin Panel
+                </span>
+              </div>
+            ) : currentRole === 'watchman' ? (
+              <div className="flex items-center space-x-1.5 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">
+                <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                <span className="text-xs font-black text-purple-900 tracking-wide">
+                  👮 Watchman Mode
+                </span>
               </div>
             ) : (
               /* Resident Flat Label - Static, no dropdown */
@@ -149,7 +131,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentRole === 'watchman' && (
             <>
               <TabBtn id="water-meter" label="Enter Water Meter Readings" icon={<Droplet size={16} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
-              <TabBtn id="collections" label="Gate Cash Handover" icon={<Receipt size={16} />} active={activeTab === 'collections'} onClick={setActiveTab} />
               <TabBtn id="directory" label="Emergency Contacts" icon={<Phone size={16} />} active={activeTab === 'directory'} onClick={setActiveTab} />
             </>
           )}
@@ -183,7 +164,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         {currentRole === 'watchman' && (
           <>
             <MobileTabBtn id="water-meter" label="Readings" icon={<Droplet size={18} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
-            <MobileTabBtn id="collections" label="Gate Cash" icon={<Receipt size={18} />} active={activeTab === 'collections'} onClick={setActiveTab} />
             <MobileTabBtn id="directory" label="Emergency" icon={<Phone size={18} />} active={activeTab === 'directory'} onClick={setActiveTab} />
           </>
         )}

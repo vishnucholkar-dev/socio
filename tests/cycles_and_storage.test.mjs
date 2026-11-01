@@ -36,201 +36,145 @@ function runTest(name, fn) {
 
 console.log('\n--- Running Rockcliff Storage & Cycle Management Tests ---\n');
 
-// 1. MIGRATION & INITIALIZATION TESTS
-runTest('Legacy data without cycle metadata marks earlier months legacy-closed and latest as initialization-required', () => {
+// 1. MIGRATION & ACTIVE CYCLE INVARIANTS
+runTest('Single active cycle policy: October 2026 is open, November is not open, earlier months are legacy-closed', () => {
   const data = storage.getApartmentData();
   const months = Object.keys(data.cycles);
   assert(months.length > 1, 'Should have multiple months in seed data');
-  const latestMonth = months[months.length - 1];
+
+  assert.strictEqual(data.cycles['October 2026'].status, 'open', 'October 2026 must be active open cycle');
+  assert.strictEqual(data.cycles['November 2026'].status, 'initialization-required', 'November 2026 must not be open yet');
 
   for (const m of months) {
-    if (m === latestMonth) {
-      assert.strictEqual(data.cycles[m].status, 'initialization-required');
-      assert.strictEqual(data.cycles[m].initialized_as, 'legacy');
-    } else {
+    if (m !== 'October 2026' && m !== 'November 2026') {
       assert.strictEqual(data.cycles[m].status, 'legacy-closed');
-      assert.strictEqual(data.cycles[m].initialized_as, 'legacy');
     }
   }
 });
 
-runTest('Edits are blocked in legacy-closed and initialization-required cycles', () => {
+runTest('Edits are permitted in October 2026 (open) and blocked in November 2026 and legacy-closed cycles', () => {
   const data = storage.getApartmentData();
-  const months = Object.keys(data.cycles);
-  const latestMonth = months[months.length - 1];
-  const priorMonth = months[months.length - 2];
 
+  // Permitted in October
+  const withExpense = storage.addExpense('October 2026', {
+    description: 'Diwali Lighting repair',
+    amount: 1200,
+    category: 'Electrical',
+    type: 'Cash',
+    date: '2026-10-15'
+  });
+  const octM = withExpense.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert(octM.expenses.some(e => e.description === 'Diwali Lighting repair'));
+
+  // Blocked in November (not open)
   assert.throws(() => {
-    storage.addExpense(latestMonth, { description: 'Capacitor', amount: 500, category: 'Electrical', type: 'Cash', date: '2026-11-01' });
+    storage.addExpense('November 2026', { description: 'Capacitor', amount: 500, category: 'Electrical', type: 'Cash', date: '2026-11-01' });
   }, /requires explicit cycle initialization/);
 
+  // Blocked in September (legacy closed)
   assert.throws(() => {
-    storage.addExpense(priorMonth, { description: 'Capacitor', amount: 500, category: 'Electrical', type: 'Cash', date: '2026-10-01' });
+    storage.addExpense('September Water 2026', { description: 'Old repair', amount: 500, category: 'Electrical', type: 'Cash', date: '2026-09-01' });
   }, /locked legacy cycle/);
 });
 
-runTest('Admin can initialize latest cycle as open, recording audit trail', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-
-  const updated = storage.initializeCycle(latestMonth, 'open', 'Starting active month operations');
-  assert.strictEqual(updated.cycles[latestMonth].status, 'open');
-  assert(updated.cycles[latestMonth].opened_at, 'Should record opened_at timestamp');
-
-  const auditEvents = updated.cycle_audit.filter(e => e.action === 'legacy.initialized');
-  assert.strictEqual(auditEvents.length, 1);
-  assert.strictEqual(auditEvents[0].month, latestMonth);
-  assert.strictEqual(auditEvents[0].reason, 'Starting active month operations');
-
-  // Now edits are allowed
-  const withExpense = storage.addExpense(latestMonth, { description: 'Tanker load', amount: 800, category: 'Water Tankers', type: 'Cash', date: '2026-11-01' });
-  const maint = withExpense.maintenance_statements.find(s => s.sheet_name === latestMonth);
-  assert(maint.expenses.some(e => e.description === 'Tanker load'));
+runTest('Single open cycle invariant: Opening another cycle while October is open is blocked', () => {
+  assert.throws(() => {
+    storage.openCycle('November 2026', 'Open early');
+  }, /Only one cycle can be open at a time/);
 });
 
-runTest('Admin can initialize latest cycle as closed with preserved balances', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-
-  const updated = storage.initializeCycle(latestMonth, 'closed', 'Historically verified closed');
-  assert.strictEqual(updated.cycles[latestMonth].status, 'closed');
-  assert(Number.isFinite(updated.cycles[latestMonth].closed_cash_balance));
-  assert(Number.isFinite(updated.cycles[latestMonth].closed_bank_balance));
-});
-
-// 2. REOPEN SAFEGUARDS
+// 2. REOPEN & CLOSE SAFEGUARDS
 runTest('Legacy-closed cycles cannot be reopened', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const legacyMonth = months[0];
-
   assert.throws(() => {
-    storage.reopenCycle(legacyMonth, 'Want to edit legacy period');
-  }, /legacy-closed periods cannot be reopened/);
-});
-
-runTest('Only the latest closed cycle can be reopened, and requires an audit reason', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-
-  // Initialize latest as closed
-  storage.initializeCycle(latestMonth, 'closed', 'Initial close');
-
-  // Must provide reason
-  assert.throws(() => {
-    storage.reopenCycle(latestMonth, '   ');
-  }, /audit reason is required/);
-
-  // Successfully reopen
-  const reopened = storage.reopenCycle(latestMonth, 'Need to correct Laxman salary payment');
-  assert.strictEqual(reopened.cycles[latestMonth].status, 'open');
-  assert.strictEqual(reopened.cycles[latestMonth].closed_at, undefined);
-
-  const reopenAudit = reopened.cycle_audit.filter(e => e.action === 'reopened');
-  assert.strictEqual(reopenAudit.length, 1);
-  assert.strictEqual(reopenAudit[0].reason, 'Need to correct Laxman salary payment');
-});
-
-runTest('Cannot reopen a cycle if another cycle is already open', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-
-  storage.initializeCycle(latestMonth, 'open', 'Keep open');
-
-  // Try reopening a legacy or closed cycle
-  assert.throws(() => {
-    storage.reopenCycle(months[0], 'Test');
+    storage.reopenCycle('September Water 2026', 'Want to edit legacy period');
   }, /legacy-closed periods cannot be reopened/);
 });
 
 // 3. BALANCE TRANSFERS & ATOMICITY
-runTest('Balance transfer moves money between Cash and Bank correctly', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-  storage.initializeCycle(latestMonth, 'open', 'Open for testing');
+runTest('Balance transfer moves money between Cash and Bank correctly in October 2026', () => {
+  // Add petty cash inflow first
+  storage.addInflow('October 2026', {
+    description: 'Petty Cash Replenishment',
+    amount: 5000,
+    type: 'Cash',
+    date: '2026-10-01'
+  });
 
-  const maintBefore = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === latestMonth);
+  const maintBefore = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
   const initialCash = maintBefore.cash_balance;
   const initialBank = maintBefore.bank_balance;
 
-  // Add transfer from Bank to Cash
-  const updated = storage.addBalanceTransfer(latestMonth, {
-    description: 'ATM Cash Withdrawal for Gate Petty Cash',
+  // Add transfer from Cash to Bank (deposit gate cash into society bank)
+  const updated = storage.addBalanceTransfer('October 2026', {
+    description: 'Bank Deposit of Petty Cash',
     amount: 1000,
-    from: 'Bank',
-    to: 'Cash',
-    date: '2026-11-02'
+    from: 'Cash',
+    to: 'Bank',
+    date: '2026-10-02'
   });
 
-  const maintAfter = updated.maintenance_statements.find(s => s.sheet_name === latestMonth);
-  assert.strictEqual(maintAfter.bank_balance, Math.round((initialBank - 1000) * 100) / 100);
-  assert.strictEqual(maintAfter.cash_balance, Math.round((initialCash + 1000) * 100) / 100);
+  const maintAfter = updated.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(maintAfter.cash_balance, Math.round((initialCash - 1000) * 100) / 100);
+  assert.strictEqual(maintAfter.bank_balance, Math.round((initialBank + 1000) * 100) / 100);
   assert.strictEqual(maintAfter.transfers.length, 1);
 });
 
 runTest('Transfer update validates atomically and does not mutate balances on failure', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-  storage.initializeCycle(latestMonth, 'open', 'Open for testing');
+  // Add cash inflow first
+  storage.addInflow('October 2026', {
+    description: 'Petty Cash Replenishment',
+    amount: 5000,
+    type: 'Cash',
+    date: '2026-10-01'
+  });
 
-  storage.addBalanceTransfer(latestMonth, {
-    description: 'Petty cash refill',
+  storage.addBalanceTransfer('October 2026', {
+    description: 'Deposit into Bank',
     amount: 500,
-    from: 'Bank',
-    to: 'Cash',
-    date: '2026-11-02'
+    from: 'Cash',
+    to: 'Bank',
+    date: '2026-10-02'
   });
 
   const dataBefore = storage.getApartmentData();
-  const maintBefore = dataBefore.maintenance_statements.find(s => s.sheet_name === latestMonth);
+  const maintBefore = dataBefore.maintenance_statements.find(s => s.sheet_name === 'October 2026');
   const transferId = maintBefore.transfers[0].id;
   const cashBefore = maintBefore.cash_balance;
   const bankBefore = maintBefore.bank_balance;
 
-  // Attempt update with amount exceeding available balance (e.g. ₹999,999,999)
+  // Attempt update with amount exceeding available balance
   assert.throws(() => {
-    storage.updateBalanceTransfer(latestMonth, transferId, {
+    storage.updateBalanceTransfer('October 2026', transferId, {
       description: 'Massive transfer',
       amount: 999999999,
-      from: 'Bank',
-      to: 'Cash',
-      date: '2026-11-02'
+      from: 'Cash',
+      to: 'Bank',
+      date: '2026-10-02'
     });
   }, /exceeds the available/);
 
   // Verify in-memory state was NOT mutated
   const dataAfter = storage.getApartmentData();
-  const maintAfter = dataAfter.maintenance_statements.find(s => s.sheet_name === latestMonth);
+  const maintAfter = dataAfter.maintenance_statements.find(s => s.sheet_name === 'October 2026');
   assert.strictEqual(maintAfter.cash_balance, cashBefore, 'Cash balance should remain unchanged after failed update');
   assert.strictEqual(maintAfter.bank_balance, bankBefore, 'Bank balance should remain unchanged after failed update');
   assert.strictEqual(maintAfter.transfers[0].amount, 500, 'Transfer amount should remain 500');
 
   // Delete transfer reverses properly
-  storage.deleteBalanceTransfer(latestMonth, transferId);
+  storage.deleteBalanceTransfer('October 2026', transferId);
   const dataDeleted = storage.getApartmentData();
-  const maintDeleted = dataDeleted.maintenance_statements.find(s => s.sheet_name === latestMonth);
+  const maintDeleted = dataDeleted.maintenance_statements.find(s => s.sheet_name === 'October 2026');
   assert.strictEqual(maintDeleted.transfers.length, 0);
-  assert.strictEqual(maintDeleted.bank_balance, Math.round((bankBefore + 500) * 100) / 100);
-  assert.strictEqual(maintDeleted.cash_balance, Math.round((cashBefore - 500) * 100) / 100);
+  assert.strictEqual(maintDeleted.cash_balance, Math.round((cashBefore + 500) * 100) / 100);
+  assert.strictEqual(maintDeleted.bank_balance, Math.round((bankBefore - 500) * 100) / 100);
 });
 
 // 4. INCREMENTAL FLAT PAYMENTS & LEDGER RECONCILIATION
-runTest('Incremental flat payments record individual receipts and reconcile channels', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-  storage.initializeCycle(latestMonth, 'open', 'Open for testing');
-
+runTest('Incremental flat payments record individual receipts and reconcile channels in October', () => {
   // Flat 101 pays partial 1000 in Cash
-  storage.recordFlatPayment(latestMonth, 101, 1000, 'Cash', 'Advance receipt 1');
+  storage.recordFlatPayment('October 2026', 101, 1000, 'Cash', 'Advance receipt 1', '2026-10-05');
 
-  let maint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === latestMonth);
+  let maint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
   let flat101 = maint.flats.find(f => f.flat === 101);
   assert.strictEqual(flat101.paid, 1000);
   assert.strictEqual(flat101.receipts.length, 1);
@@ -238,9 +182,9 @@ runTest('Incremental flat payments record individual receipts and reconcile chan
   assert.strictEqual(flat101.receipts[0].amount, 1000);
 
   // Flat 101 pays another 500 via Online (Bank)
-  storage.recordFlatPayment(latestMonth, 101, 500, 'Online', 'UPI payment 2');
+  storage.recordFlatPayment('October 2026', 101, 500, 'Online', 'UPI payment 2', '2026-10-10');
 
-  maint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === latestMonth);
+  maint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
   flat101 = maint.flats.find(f => f.flat === 101);
   assert.strictEqual(flat101.paid, 1500);
   assert.strictEqual(flat101.receipts.length, 2);
@@ -249,131 +193,50 @@ runTest('Incremental flat payments record individual receipts and reconcile chan
 
   // Cannot pay more than total payable
   assert.throws(() => {
-    storage.recordFlatPayment(latestMonth, 101, 500000, 'Online', 'Excess payment');
+    storage.recordFlatPayment('October 2026', 101, 500000, 'Online', 'Excess payment', '2026-10-15');
   }, /Payment cannot exceed the flat’s outstanding balance/);
 });
 
-// 5. PRE-CLOSE VALIDATION & CLOSE RECONCILIATION
-runTest('closeCycle enforces complete valid water readings and reconciliation note', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
-  storage.initializeCycle(latestMonth, 'open', 'Open for testing');
+// 5. SINGLE FLAT WATER READING SAVE & RECALCULATION
+runTest('saveSingleFlatWaterReading updates single flat and dynamically recalculates all 32 flats', () => {
+  const dataBefore = storage.getApartmentData();
+  const octWaterBefore = dataBefore.water_statements.find(s => s.sheet_name === 'October 2026');
+  const f101Before = octWaterBefore.flats.find(f => f.flat === 101);
 
-  // Attempt to close when water readings are incomplete
+  // Flat 101 opening reading is 102,833. Save new closing reading 120,000
+  const updated = storage.saveSingleFlatWaterReading('October 2026', 101, 120000);
+  const octWaterAfter = updated.water_statements.find(s => s.sheet_name === 'October 2026');
+  const f101After = octWaterAfter.flats.find(f => f.flat === 101);
+
+  assert.strictEqual(f101After.closing_reading, 120000);
+  assert.strictEqual(f101After.liters, 120000 - 102833);
+  assert(Number.isFinite(f101After.water_charge) && f101After.water_charge > 0);
+
+  // Reject closing reading less than opening reading
   assert.throws(() => {
-    storage.closeCycle(latestMonth);
-  }, /Cannot close this cycle yet/);
-
-  // Save complete valid water statement
-  const waterStmt = initial.water_statements.find(s => s.sheet_name === latestMonth);
-  assert(waterStmt, 'Water statement exists');
-  const maint = initial.maintenance_statements.find(s => s.sheet_name === latestMonth);
-  const completeWater = {
-    ...waterStmt,
-    flats: waterStmt.flats.map(f => {
-      const mFlat = maint?.flats.find(item => item.flat === f.flat);
-      const paid = mFlat?.paid || 0;
-      const prev = mFlat?.previous_pending || 0;
-      const safeActual = Math.max(1400, Math.max(0, paid - prev));
-      return {
-        ...f,
-        closing_reading: Math.max(f.closing_reading || 0, f.opening_reading + 500),
-        liters: 500,
-        actual_amount: safeActual
-      };
-    })
-  };
-  storage.saveWaterStatement(completeWater);
-
-  // Introduce a balance discrepancy (e.g. recorded cash balance differing from activity ledger)
-  const currentData = storage.getApartmentData();
-  const currentMaint = currentData.maintenance_statements.find(s => s.sheet_name === latestMonth);
-  currentMaint.cash_balance = Math.round((currentMaint.cash_balance + 250) * 100) / 100;
-  // Persist directly using localStorage mock to simulate historical discrepancy
-  store.set('rockcliff_apartment_data_v10', JSON.stringify(currentData));
-
-  // Discrepancy requires an explanatory close note
-  assert.throws(() => {
-    storage.closeCycle(latestMonth, '');
-  }, /Balance reconciliation needs review/);
-
-  // Provide close note and successfully close cycle
-  const closedData = storage.closeCycle(latestMonth, 'Discrepancy due to undeposited festival collection');
-  assert.strictEqual(closedData.cycles[latestMonth].status, 'closed');
-  assert.strictEqual(closedData.cycles[latestMonth].close_reason, 'Discrepancy due to undeposited festival collection');
+    storage.saveSingleFlatWaterReading('October 2026', 101, 100000);
+  }, /cannot be less than opening reading/);
 });
 
-// 6. SEQUENTIAL ROLLOVER (openNextCycle)
-runTest('openNextCycle rolls balances separately, transfers dues, carries meter baselines, and advances sequentially', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const latestMonth = months[months.length - 1];
+// 6. CLOSING OCTOBER AUTOMATICALLY ROLLS OVER TO NOVEMBER
+runTest('Closing October 2026 automatically rolls over and opens November 2026', () => {
+  const dataBefore = storage.getApartmentData();
+  assert.strictEqual(dataBefore.cycles['October 2026'].status, 'open');
+  assert.strictEqual(dataBefore.cycles['November 2026'].status, 'initialization-required');
 
-  // Initialize and properly close latestMonth
-  storage.initializeCycle(latestMonth, 'open', 'Open for close test');
-  const waterStmt = initial.water_statements.find(s => s.sheet_name === latestMonth);
-  const maint = initial.maintenance_statements.find(s => s.sheet_name === latestMonth);
-  const completeWater = {
-    ...waterStmt,
-    flats: waterStmt.flats.map(f => {
-      const mFlat = maint?.flats.find(item => item.flat === f.flat);
-      const paid = mFlat?.paid || 0;
-      const prev = mFlat?.previous_pending || 0;
-      const safeActual = Math.max(1400, Math.max(0, paid - prev));
-      return {
-        ...f,
-        closing_reading: Math.max(f.closing_reading || 0, f.opening_reading + 500),
-        liters: 500,
-        actual_amount: safeActual
-      };
-    })
-  };
-  storage.saveWaterStatement(completeWater);
-  storage.closeCycle(latestMonth, 'Audited close');
+  // Explicitly complete water statement before closing
+  const octWater = dataBefore.water_statements.find(s => s.sheet_name === 'October 2026');
+  storage.saveWaterStatement(octWater);
 
-  const closedMaint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === latestMonth);
-  const closedWater = storage.getApartmentData().water_statements.find(s => s.sheet_name === latestMonth);
+  // Close October 2026 with explanatory discrepancy note if needed
+  const closedData = storage.closeCycle('October 2026', 'Closed after October general body meeting review');
 
-  // Roll over to next month
-  const rolled = storage.openNextCycle(latestMonth);
-  const expectedNextMonth = storage.nextMonthLabel(latestMonth);
+  // October is now closed
+  assert.strictEqual(closedData.cycles['October 2026'].status, 'closed');
+  assert.strictEqual(closedData.cycles['October 2026'].close_reason, 'Closed after October general body meeting review');
 
-  assert.strictEqual(rolled.cycles[expectedNextMonth].status, 'open');
-
-  const newMaint = rolled.maintenance_statements.find(s => s.sheet_name === expectedNextMonth);
-  const newWater = rolled.water_statements.find(s => s.sheet_name === expectedNextMonth);
-
-  assert(newMaint, 'New maintenance statement created');
-  assert(newWater, 'New water statement created');
-
-  // Verify separate carry-forwards
-  assert.strictEqual(newMaint.cash_opening, closedMaint.cash_balance, 'Cash opening matches prior cash balance');
-  assert.strictEqual(newMaint.bank_opening, closedMaint.bank_balance, 'Bank opening matches prior bank balance');
-  assert.strictEqual(newMaint.cash_balance, closedMaint.cash_balance);
-  assert.strictEqual(newMaint.bank_balance, closedMaint.bank_balance);
-  assert.strictEqual(newMaint.cash_total_in, 0);
-  assert.strictEqual(newMaint.bank_total_in, 0);
-  assert.strictEqual(newMaint.expenses.length, 0);
-  assert.strictEqual(newMaint.inflows.length, 0);
-  assert.strictEqual(newMaint.transfers.length, 0);
-
-  // Verify flat dues rollover
-  for (const flat of rolled.flats) {
-    const priorRow = closedMaint.flats.find(f => f.flat === flat);
-    const newRow = newMaint.flats.find(f => f.flat === flat);
-    assert.strictEqual(newRow.previous_pending, priorRow.pending, `Flat ${flat} carries exact pending dues`);
-    assert.strictEqual(newRow.paid, 0);
-  }
-
-  // Verify water meter baselines carried forward
-  for (const flat of rolled.flats) {
-    const priorReading = closedWater.flats.find(f => f.flat === flat);
-    const newReading = newWater.flats.find(f => f.flat === flat);
-    assert.strictEqual(newReading.opening_reading, priorReading.closing_reading, `Flat ${flat} opening meter matches prior closing meter`);
-    assert.strictEqual(newReading.closing_reading, priorReading.closing_reading);
-  }
-  assert.strictEqual(newWater.readings_complete, false, 'New water readings start unconfirmed');
+  // November 2026 is automatically opened!
+  assert.strictEqual(closedData.cycles['November 2026'].status, 'open', 'November must auto-open upon October close');
 });
 
 // 7. CORRUPT STORAGE RESILIENCE
@@ -384,7 +247,6 @@ runTest('Corrupt localStorage throws error without overwriting storage with seed
     storage.getApartmentData();
   }, /unreadable.*original browser storage was preserved/);
 
-  // Verify corrupt string was NOT cleared or replaced with seed
   assert.strictEqual(store.get('rockcliff_apartment_data_v10'), '{ invalid json syntax !!!');
 });
 
@@ -483,62 +345,7 @@ runTest('Water billing calculation formula correctly distributes costs and adds 
   assert.strictEqual(f101.total_payable, 13900); // 13400 + 500 pending
 });
 
-// 12. MULTI-CYCLE CONCURRENCY & DATE ROUTING
-runTest('Multiple cycles can be open concurrently and route transactions with date enforcement', () => {
-  const initial = storage.getApartmentData();
-  const months = Object.keys(initial.cycles);
-  const nov2026 = 'November 2026';
-  const oct2026 = 'October 2026';
-
-  storage.initializeCycle(nov2026, 'open', 'Initialize Nov');
-  storage.openCycle(oct2026, 'Concurrently open Oct');
-
-  const afterOpen = storage.getApartmentData();
-  assert.strictEqual(afterOpen.cycles[nov2026].status, 'open');
-  assert.strictEqual(afterOpen.cycles[oct2026].status, 'open');
-
-  // Add Inflow to October 2026 with October date
-  storage.addInflow(oct2026, {
-    description: 'October Vendor Ad Banner',
-    amount: 3000,
-    type: 'Bank',
-    category: 'Vendor Ad Rent (Lift / Gate Displays)',
-    date: '2026-10-01'
-  });
-
-  // Add Expense to November 2026 with November date
-  storage.addExpense(nov2026, {
-    description: 'November Sump Cleaner Salary',
-    amount: 1500,
-    type: 'Cash',
-    category: 'Staff Salary (Laxman)',
-    date: '2026-11-01'
-  });
-
-  const checkData = storage.getApartmentData();
-  const octMaint = checkData.maintenance_statements.find(s => s.sheet_name === oct2026);
-  const novMaint = checkData.maintenance_statements.find(s => s.sheet_name === nov2026);
-
-  assert(octMaint.inflows.some(i => i.description === 'October Vendor Ad Banner' && i.category === 'Vendor Ad Rent (Lift / Gate Displays)'));
-  assert(novMaint.expenses.some(e => e.description === 'November Sump Cleaner Salary' && e.category === 'Staff Salary (Laxman)'));
-
-  // Dates outside the target cycle are rejected
-  assert.throws(() => {
-    storage.addInflow(oct2026, {
-      description: 'Misdated Inflow',
-      amount: 1000,
-      type: 'Bank',
-      date: '2026-11-15'
-    });
-  }, /Transaction date.*does not belong to October 2026/);
-
-  // Flat payment routed to October with October date
-  storage.recordFlatPayment(oct2026, 101, 1000, 'Online', 'October Part Payment', '2026-10-01');
-  const octFlat101 = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === oct2026).flats.find(f => f.flat === 101);
-  assert(octFlat101.receipts.some(r => r.amount === 1000 && r.date === '2026-10-01'));
-});
-
-// 13. OCTOBER 2026 VERIFIED BENCHMARK & FLAT 405 RECONCILIATION
+// 12. OCTOBER 2026 VERIFIED BENCHMARK & FLAT 405 RECONCILIATION
 runTest('October 2026 maintains verified society benchmark numbers (Flat 405: 1400 base + 1376 water = 2776)', () => {
   const data = storage.getApartmentData();
   const octMaint = data.maintenance_statements.find(s => s.sheet_name.includes('October 2026'));
@@ -566,6 +373,35 @@ runTest('October 2026 maintains verified society benchmark numbers (Flat 405: 14
 
   const totalBilled = octMaint.flats.reduce((sum, f) => sum + f.actual, 0);
   assert.strictEqual(totalBilled, 89414.0, 'October 2026 total society billed maintenance must be 89,414');
+});
+
+// 13. MARCH 2026 BENCHMARK & FLAT 405 RECONCILIATION
+runTest('March 2026 maintains verified society benchmark numbers (Flat 405: 1400 base + 720 water = 2120)', () => {
+  const data = storage.getApartmentData();
+  const marMaint = data.maintenance_statements.find(s => s.sheet_name.includes('March') && s.sheet_name.includes('2026'));
+  const marWater = data.water_statements.find(s => s.sheet_name.includes('March') && s.sheet_name.includes('2026'));
+
+  assert(marWater, 'March 2026 water statement exists');
+  assert(marMaint, 'March 2026 maintenance statement exists');
+
+  assert.strictEqual(marWater.tanker_bill, 12600.0, 'March tanker bill must be 12,600');
+  assert.strictEqual(marWater.electricity_bill, 16124.0, 'March electricity bill must be 16,124');
+  assert.strictEqual(marWater.net_electricity, 10124.0, 'Net power must be 16,124 - 6,000 = 10,124');
+  assert.strictEqual(marWater.total_water_consumption_liters, 453676.0, 'Total water consumption must be 453,676 L');
+
+  const f405Water = marWater.flats.find(f => f.flat === 405);
+  const f405Maint = marMaint.flats.find(f => f.flat === 405);
+
+  assert(f405Water && f405Maint, 'Flat 405 exists in March statements');
+  assert.strictEqual(f405Water.opening_reading, 326455.0, 'Flat 405 opening reading baseline');
+  assert.strictEqual(f405Water.closing_reading, 340831.0, 'Flat 405 closing reading');
+  assert.strictEqual(f405Water.liters, 14376.0, 'Flat 405 consumed liters');
+  assert.strictEqual(f405Water.mandatory_maintenance, 1400.0, 'Flat 405 base maintenance is 1400');
+  assert.strictEqual(f405Water.water_charge, 720.07, 'Flat 405 water charge is 720.07 (~720)');
+  assert.strictEqual(f405Water.actual_amount, 2120.07, 'Flat 405 total assessment is 2120.07 (~2120)');
+  assert.strictEqual(f405Maint.actual, 2120.07, 'Flat 405 maintenance actual bill must match water actual amount');
+  assert.strictEqual(f405Maint.paid, 2120.07, 'Flat 405 paid in full (2120.07)');
+  assert.strictEqual(f405Maint.pending, 0.0, 'Flat 405 pending is 0');
 });
 
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);

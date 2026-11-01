@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
-import { MaintenanceStatement, FlatMaintenanceData, PaymentReceipt } from '../types/apartment';
+import { MaintenanceStatement, FlatMaintenanceData, PaymentReceipt, WaterStatement } from '../types/apartment';
 import { formatINR, formatINRExact } from '../services/calculations';
+import { sameCalendarMonth } from '../services/storage';
 import { Receipt, Calendar, Printer, CheckCircle2, AlertCircle } from './Icons';
 
 interface ResidentHistoryProps {
   selectedFlat: number;
   allMaintenanceStatements: MaintenanceStatement[];
+  allWaterStatements?: WaterStatement[];
 }
 
 export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
   selectedFlat,
-  allMaintenanceStatements
+  allMaintenanceStatements,
+  allWaterStatements
 }) => {
   const [selectedReceipt, setSelectedReceipt] = useState<{
     statementTitle: string;
     flatData: FlatMaintenanceData;
     receipt?: PaymentReceipt;
+    baseMaintenance?: number;
+    waterCharge?: number;
+    consumedLiters?: number;
+    literRate?: number;
   } | null>(null);
 
   // Collect history across all statements sorted chronologically
@@ -69,13 +76,24 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
             <tbody className="divide-y divide-slate-100 font-mono">
               {flatHistory.map(({ statement, flat }) => {
                 const isPaid = flat.pending <= 1;
+                const waterStatement = allWaterStatements?.find(w => sameCalendarMonth(w.sheet_name, statement.sheet_name));
+                const waterFlat = waterStatement?.flats.find(f => f.flat === selectedFlat);
+                const baseMaint = waterFlat?.mandatory_maintenance || 1400;
+                const waterCost = waterFlat ? waterFlat.water_charge : Math.max(0, flat.actual - baseMaint);
                 return (
                   <tr key={statement.sheet_name} className="hover:bg-slate-50/70 transition-colors">
                     <td className="py-3.5 px-4 font-sans font-bold text-slate-900">
                       {statement.title || statement.sheet_name}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-semibold text-slate-900">
-                      {formatINR(flat.actual)}
+                    <td className="py-3.5 px-4 text-right">
+                      <span className="font-bold text-slate-900 block font-mono text-xs">
+                        {formatINR(flat.actual)}
+                      </span>
+                      {waterCost > 0 && (
+                        <span className="text-[10px] text-slate-400 font-sans font-normal block">
+                          ₹{baseMaint.toLocaleString('en-IN')} base + {formatINR(waterCost)} water
+                        </span>
+                      )}
                     </td>
                     <td className="py-3.5 px-4 text-right font-bold text-emerald-700">
                       {formatINR(flat.paid)}
@@ -95,7 +113,14 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
                     </td>
                     <td className="py-3.5 px-4 text-right font-sans">
                       <button
-                        onClick={() => setSelectedReceipt({ statementTitle: statement.title || statement.sheet_name, flatData: flat })}
+                        onClick={() => setSelectedReceipt({
+                          statementTitle: statement.title || statement.sheet_name,
+                          flatData: flat,
+                          baseMaintenance: baseMaint,
+                          waterCharge: waterCost,
+                          consumedLiters: waterFlat?.liters,
+                          literRate: waterStatement?.liter_per_charge
+                        })}
                         className="inline-flex items-center space-x-1 px-3 py-1 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 rounded-lg text-[11px] font-bold transition-all shadow-2xs"
                       >
                         <Receipt size={12} />
@@ -149,17 +174,38 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
               <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">Billing Breakdown</h4>
               <table className="w-full text-xs">
                 <tbody className="divide-y divide-slate-100">
-                  <tr className="bg-slate-50 font-bold">
+                  <tr>
+                    <td className="py-2 px-2 text-slate-700">Fixed Base Maintenance</td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">
+                      ₹{(selectedReceipt.baseMaintenance || 1400).toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                  {selectedReceipt.waterCharge !== undefined && selectedReceipt.waterCharge > 0 && (
+                    <tr>
+                      <td className="py-2 px-2 text-slate-700">
+                        Water Consumption Charge
+                        {selectedReceipt.consumedLiters ? (
+                          <span className="block text-[10px] text-slate-400">
+                            ({selectedReceipt.consumedLiters.toLocaleString()} Liters)
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">
+                        {formatINR(selectedReceipt.waterCharge)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="bg-slate-50 font-bold border-t border-slate-200">
                     <td className="py-2 px-2 text-slate-900">Total Month Assessment</td>
                     <td className="py-2 px-2 text-right font-mono text-slate-900">{formatINR(selectedReceipt.flatData.actual)}</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-emerald-700 font-semibold">Amount Paid</td>
-                    <td className="py-2 text-right font-mono font-bold text-emerald-700">{formatINR(selectedReceipt.flatData.paid)}</td>
+                    <td className="py-2 px-2 text-emerald-700 font-semibold">Amount Paid</td>
+                    <td className="py-2 px-2 text-right font-mono font-bold text-emerald-700">{formatINR(selectedReceipt.flatData.paid)}</td>
                   </tr>
                   <tr className="border-t-2 border-slate-800 font-black">
-                    <td className="py-2.5 text-slate-900">Balance Pending Due</td>
-                    <td className={`py-2.5 text-right font-mono ${selectedReceipt.flatData.pending > 1 ? 'text-rose-600' : 'text-slate-900'}`}>
+                    <td className="py-2.5 px-2 text-slate-900">Balance Pending Due</td>
+                    <td className={`py-2.5 px-2 text-right font-mono ${selectedReceipt.flatData.pending > 1 ? 'text-rose-600' : 'text-slate-900'}`}>
                       {formatINR(selectedReceipt.flatData.pending)}
                     </td>
                   </tr>
