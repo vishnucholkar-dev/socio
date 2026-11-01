@@ -11,6 +11,7 @@ interface CollectionsModuleProps {
   allWaterStatements: WaterStatement[];
   selectedFlat: number;
   onRecordPayment: (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string) => boolean;
+  onResetPaymentToDue?: (monthSheet: string, flatNumber: number) => boolean;
   cycleStatus?: CycleStatus;
   openCycles?: string[];
 }
@@ -39,6 +40,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   allWaterStatements,
   selectedFlat,
   onRecordPayment,
+  onResetPaymentToDue,
   cycleStatus = 'legacy-closed',
   openCycles
 }) => {
@@ -281,7 +283,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 no-print">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 no-print">
                 <button
                   onClick={() => setReceiptFlat(flat)}
                   className="flex-1 flex items-center justify-center space-x-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold rounded-lg transition-colors"
@@ -297,6 +299,20 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                   >
                     <DollarSign size={13} />
                     <span>Pay</span>
+                  </button>
+                )}
+
+                {canEdit && currentRole === 'admin' && flat.paid > 0 && onResetPaymentToDue && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Revert Flat ${flat.flat} payments back to Due? This will restore the full balance and reverse recorded cash/bank collections.`)) {
+                        onResetPaymentToDue(currentStatement.sheet_name, flat.flat);
+                      }
+                    }}
+                    title="Mistakenly marked as paid? Reset back to Due."
+                    className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold rounded-lg border border-rose-200 transition-colors"
+                  >
+                    To Due
                   </button>
                 )}
               </div>

@@ -61,6 +61,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   const monthlyAveragePaidThisYear = Math.round(totalPaidThisYear / monthsPassedThisYear);
 
   const isPaid = (flatMaint?.pending || 0) <= 1;
+  const isReadingPending = !flatWater || flatWater.closing_reading <= flatWater.opening_reading || currentWater?.readings_complete !== true;
 
   return (
     <div className="space-y-6">
@@ -114,6 +115,12 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
 
           <div className="flex items-center space-x-3">
+            {isReadingPending && (
+              <span className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center space-x-1">
+                <span>⏳</span>
+                <span>Meter Reading Pending</span>
+              </span>
+            )}
             <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
               isPaid
                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
@@ -123,6 +130,19 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             </span>
           </div>
         </div>
+
+        {isReadingPending && (
+          <div className="mt-5 p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
+            <span className="text-base shrink-0">⏳</span>
+            <div>
+              <p className="font-bold">Meter Reading Not Recorded Yet</p>
+              <p className="text-amber-800 mt-0.5">
+                The closing meter reading for {selectedMonth} has not been recorded for your flat yet.
+                Your provisional bill currently displays the fixed base mandatory maintenance ({formatINR(flatWater?.mandatory_maintenance || 1400)}) and will automatically update once the watchman enters your reading.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 4 Metrics for Selected Month */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">

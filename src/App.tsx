@@ -3,6 +3,7 @@ import { UserRole, ApartmentData, WaterStatement, DirectoryContact, ExpenseItem,
 import {
   getApartmentData,
   recordFlatPayment,
+  resetFlatPaymentToDue,
   addExpense,
   updateExpense,
   deleteExpense,
@@ -78,6 +79,9 @@ export const App: React.FC = () => {
 
   const handleRecordPayment = (monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string) =>
     runAction(() => recordFlatPayment(monthSheet, flatNumber, paidAmount, mode, notes, date));
+
+  const handleResetPaymentToDue = (monthSheet: string, flatNumber: number) =>
+    runAction(() => resetFlatPaymentToDue(monthSheet, flatNumber));
 
   const handleAddExpense = (monthSheet: string, expense: ExpenseItem) => runAction(() => addExpense(monthSheet, expense));
   const handleUpdateExpense = (month: string, id: string, expense: ExpenseItem) => runAction(() => updateExpense(month, id, expense));
@@ -182,6 +186,7 @@ export const App: React.FC = () => {
             allWaterStatements={data.water_statements}
             selectedFlat={selectedFlat}
             onRecordPayment={handleRecordPayment}
+            onResetPaymentToDue={handleResetPaymentToDue}
             cycleStatus={selectedCycleStatus}
             openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
           />

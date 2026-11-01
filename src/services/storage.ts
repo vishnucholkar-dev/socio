@@ -2,6 +2,7 @@ import type {
   ApartmentData, BalanceTransfer, BillingConfigEntry, CycleAuditEvent, CycleState,
   DirectoryContact, ExpenseItem, InflowItem, MaintenanceStatement, PaymentChannel, PaymentMode, WaterStatement
 } from '../types/apartment';
+import { calculateWaterBilling } from './calculations';
 import seedData from '../data/apartment_seed.json';
 import { DEFAULT_CONTACTS } from '../data/default_contacts';
 import { DEFAULT_BILLING_CONFIG_HISTORY } from '../data/default_config';
@@ -102,6 +103,8 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     if (!Array.isArray(statement.inflows)) { statement.inflows = []; changed = true; }
     if (!Array.isArray(statement.transfers)) { statement.transfers = []; changed = true; }
     if (!Array.isArray(statement.dues_list)) { statement.dues_list = []; changed = true; }
+    // Ensure water tanker and electricity bills are in sync with expenses
+    syncExpensesToWater(data, statement.sheet_name);
   }
   assertUniqueStatementMonths(data.maintenance_statements, 'maintenance');
   assertUniqueStatementMonths(data.water_statements, 'water');
@@ -249,6 +252,137 @@ function assertDateInCycle(dateStr: string | undefined, monthSheet: string): voi
   }
 }
 
+function syncExpensesToWater(data: ApartmentData, monthSheet: string): void {
+  const m = data.maintenance_statements.find(item => sameCalendarMonth(item.sheet_name, monthSheet));
+  const w = data.water_statements.find(item => sameCalendarMonth(item.sheet_name, monthSheet));
+  if (!m || !w) return;
+
+  const tankerTotal = m.expenses
+    .filter(e => (e.category || '').toLowerCase().includes('tanker') || e.description.toLowerCase().includes('tanker'))
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const elecTotal = m.expenses
+    .filter(e => (e.category || '').toLowerCase().includes('electric') || (e.category || '').toLowerCase().includes('power') || e.description.toLowerCase().includes('electricity'))
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  w.tanker_bill = money(tankerTotal);
+  if (elecTotal > 0) {
+    w.electricity_bill = money(elecTotal);
+  }
+
+  // Recalculate water billing for all flats
+  const calculated = calculateWaterBilling({
+    tankerBill: w.tanker_bill,
+    electricityBill: w.electricity_bill,
+    commonUtilization: w.common_utilization,
+    mandatoryMaintenance: w.mandatory_maintenance,
+    days: w.days || 30,
+    flatReadings: w.flats.map(f => ({
+      flat: f.flat,
+      closingReading: f.closing_reading,
+      openingReading: f.opening_reading,
+      pendingAmount: f.pending_amount
+    }))
+  });
+
+  w.net_electricity = calculated.netElectricity;
+  w.total_water_consumption_liters = calculated.totalConsumptionLiters;
+  w.avg_per_day_liters = calculated.avgPerDayLiters;
+  w.liter_per_charge = calculated.literPerCharge;
+  w.flats = calculated.flats;
+
+  // Sync actual amounts to maintenance statement
+  for (const waterFlat of w.flats) {
+    const flat = m.flats.find(item => item.flat === waterFlat.flat);
+    if (!flat) continue;
+    flat.actual = money(waterFlat.actual_amount);
+    flat.total_payable = money(flat.actual + (flat.previous_pending || 0));
+    flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
+    flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
+  }
+  m.dues_list = m.flats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending }));
+}
+
+function cascadeFlatArrears(data: ApartmentData, flatNumber: number, fromMonth: string): void {
+  const orderedLabels = Object.keys(data.cycles || {}).sort((a, b) => monthSortKey(a) - monthSortKey(b));
+  const fromIndex = orderedLabels.findIndex(l => sameCalendarMonth(l, fromMonth));
+  if (fromIndex < 0) return;
+
+  for (let i = fromIndex; i < orderedLabels.length - 1; i++) {
+    const currentLabel = orderedLabels[i];
+    const nextLabel = orderedLabels[i + 1];
+
+    const currentM = data.maintenance_statements.find(m => sameCalendarMonth(m.sheet_name, currentLabel));
+    const nextM = data.maintenance_statements.find(m => sameCalendarMonth(m.sheet_name, nextLabel));
+    const nextW = data.water_statements.find(w => sameCalendarMonth(w.sheet_name, nextLabel));
+
+    if (!currentM || !nextM) continue;
+
+    const currentFlat = currentM.flats.find(f => f.flat === flatNumber);
+    const nextFlat = nextM.flats.find(f => f.flat === flatNumber);
+
+    if (!currentFlat || !nextFlat) continue;
+
+    const newArrears = currentFlat.pending;
+    nextFlat.previous_pending = newArrears;
+    nextFlat.total_payable = money(nextFlat.actual + newArrears);
+    nextFlat.pending = money(Math.max(0, nextFlat.total_payable - nextFlat.paid));
+    nextFlat.status = nextFlat.pending <= 1 ? 'Paid' : (nextFlat.paid > 0 ? 'Partial' : 'Due');
+
+    if (nextW) {
+      const waterFlat = nextW.flats.find(f => f.flat === flatNumber);
+      if (waterFlat) {
+        waterFlat.pending_amount = newArrears;
+        waterFlat.total_payable = money(waterFlat.actual_amount + newArrears);
+      }
+    }
+
+    nextM.dues_list = nextM.flats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending }));
+  }
+}
+
+export function resetFlatPaymentToDue(monthSheet: string, flatNumber: number, reason?: string): ApartmentData {
+  const data = getApartmentData();
+  assertCycleOpen(data, monthSheet);
+  const m = getMaintenance(data, monthSheet);
+  const flat = m.flats.find(item => item.flat === flatNumber);
+  if (!flat) throw new Error(`Flat ${flatNumber} is not present in ${monthSheet}.`);
+  if ((flat.paid || 0) <= 0) return data;
+
+  const before = { ...flat };
+  // Reverse payments from Cash or Bank
+  if (flat.receipts && flat.receipts.length > 0) {
+    for (const r of flat.receipts) {
+      const channel: 'Cash' | 'Bank' = r.mode === 'Cash' ? 'Cash' : 'Bank';
+      changeBalance(m, channel, -r.amount, 0);
+    }
+  } else {
+    const channel: 'Cash' | 'Bank' = flat.mode === 'Cash' ? 'Cash' : 'Bank';
+    changeBalance(m, channel, -flat.paid, 0);
+  }
+
+  const payable = flat.total_payable ?? (flat.actual + (flat.previous_pending || 0));
+  flat.paid = 0;
+  flat.receipts = [];
+  flat.pending = payable;
+  flat.mode = 'Due';
+  flat.status = 'Due';
+  delete flat.payment_date;
+
+  cascadeFlatArrears(data, flatNumber, monthSheet);
+
+  audit(data, {
+    month: monthSheet,
+    action: 'payment.updated',
+    record_id: String(flatNumber),
+    reason: reason || 'Reverted payment back to Due by Admin',
+    before,
+    after: { ...flat }
+  });
+  persist(data);
+  return data;
+}
+
 export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAmount: number, mode: PaymentChannel, notes?: string, date?: string): ApartmentData {
   const data = getApartmentData();
   assertCycleOpen(data, monthSheet);
@@ -277,6 +411,10 @@ export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAm
   flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
   if (paidAmount > 0) flat.payment_date = effectiveDate;
   if (notes !== undefined) flat.notes = notes;
+
+  // Cascade arrears to next open months
+  cascadeFlatArrears(data, flatNumber, monthSheet);
+
   audit(data, { month: monthSheet, action: 'payment.updated', record_id: String(flatNumber), before, after: { ...flat } });
   persist(data);
   return data;
@@ -299,6 +437,10 @@ export function addExpense(monthSheet: string, expense: ExpenseItem): ApartmentD
   };
   m.expenses.push(created);
   changeBalance(m, created.type || 'Cash', 0, created.amount);
+
+  // Auto-sync tanker / electricity expenses to water billing
+  syncExpensesToWater(data, monthSheet);
+
   audit(data, { month: monthSheet, action: 'expense.created', record_id: created.id, after: { ...created } });
   persist(data);
   return data;
@@ -327,6 +469,10 @@ export function updateExpense(month: string, id: string, next: ExpenseItem): Apa
   };
   m.expenses[index] = updated;
   changeBalance(m, updated.type || 'Cash', 0, updated.amount);
+
+  // Auto-sync tanker / electricity expenses to water billing
+  syncExpensesToWater(data, month);
+
   audit(data, { month, action: 'expense.updated', record_id: updated.id, before, after: { ...updated } });
   persist(data);
   return data;
@@ -341,6 +487,10 @@ export function deleteExpense(month: string, id: string): ApartmentData {
   const before = { ...m.expenses[index] };
   changeBalance(m, before.type || 'Cash', 0, -before.amount);
   m.expenses.splice(index, 1);
+
+  // Auto-sync tanker / electricity expenses to water billing
+  syncExpensesToWater(data, month);
+
   audit(data, { month, action: 'expense.deleted', record_id: before.id, before, after: null });
   persist(data);
   return data;
