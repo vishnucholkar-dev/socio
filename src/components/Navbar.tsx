@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CycleStatus, UserRole } from '../types/apartment';
 import { Building, Shield, Users, Droplet, Receipt, DollarSign, Calendar, Phone, TrendingUp } from './Icons';
 
@@ -39,115 +39,127 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenRatePolicy,
   onOpenBackupExport
 }) => {
+  const [mobileAdminMenuOpen, setMobileAdminMenuOpen] = useState(false);
+
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm no-print">
-      {/* Top Bar: Brand + Role Switcher */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs no-print">
+      {/* Top Bar: Brand + Responsive Controls */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-14 sm:h-16 gap-2">
           {/* Logo & Society Name */}
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
-              <Building size={22} />
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-200">
+              <Building size={18} className="sm:w-[22px] sm:h-[22px]" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <span className="font-bold text-slate-900 text-lg tracking-tight">Rockcliff 'B' Block</span>
-                <span className="text-xs bg-blue-100 text-blue-700 font-semibold px-2 py-0.5 rounded-full">32 Flats</span>
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <span className="font-black text-slate-900 text-sm sm:text-base tracking-tight">Rockcliff 'B'</span>
+                <span className="text-[10px] sm:text-xs bg-blue-100 text-blue-700 font-bold px-1.5 sm:px-2 py-0.2 rounded-full">32 Flats</span>
               </div>
-              <p className="text-xs text-slate-500">Apartment Maintenance & Water Transactions System</p>
+              <p className="text-[10px] text-slate-400 hidden sm:block">Apartment Maintenance & Water System</p>
             </div>
           </div>
 
-          {/* Role Status or Resident Static Badge + 3 Dedicated Admin Controls */}
-          <div className="flex items-center space-x-2">
+          {/* Action Center & Month Selector */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
             {currentRole === 'admin' ? (
-              <div className="flex items-center space-x-1.5">
-                <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
-                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                  <span className="text-xs font-black text-blue-900 tracking-wide">
-                    👑 Admin Panel
+              <div className="flex items-center space-x-1 sm:space-x-1.5">
+                <div className="flex items-center space-x-1 bg-blue-50 border border-blue-200 px-2 sm:px-2.5 py-1 rounded-xl">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                  <span className="text-[11px] sm:text-xs font-black text-blue-900 tracking-wide">
+                    👑 Admin
                   </span>
                 </div>
 
-                {/* 1. Security & Credentials */}
-                {onOpenSecurity && (
-                  <button
-                    type="button"
-                    onClick={onOpenSecurity}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
-                    title="Change Admin Password, Watchman PIN & Reset Flat PINs"
-                  >
-                    <span>🛡️</span>
-                    <span className="hidden md:inline">Security & PINs</span>
-                  </button>
-                )}
+                {/* Desktop Admin 3 Buttons */}
+                <div className="hidden lg:flex items-center space-x-1.5">
+                  {onOpenSecurity && (
+                    <button
+                      type="button"
+                      onClick={onOpenSecurity}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                      title="Change Admin Password, Watchman PIN & Reset Flat PINs"
+                    >
+                      <span>🛡️</span>
+                      <span>Security & PINs</span>
+                    </button>
+                  )}
 
-                {/* 2. Rate Policy & Utility Settings */}
-                {onOpenRatePolicy && (
-                  <button
-                    type="button"
-                    onClick={onOpenRatePolicy}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-50 hover:text-amber-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
-                    title="Configure Base Maintenance & Common Utility Deductions"
-                  >
-                    <span>⚙️</span>
-                    <span className="hidden md:inline">Rate Settings</span>
-                  </button>
-                )}
+                  {onOpenRatePolicy && (
+                    <button
+                      type="button"
+                      onClick={onOpenRatePolicy}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-50 hover:text-amber-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                      title="Configure Base Maintenance & Common Utility Deductions"
+                    >
+                      <span>⚙️</span>
+                      <span>Rate Settings</span>
+                    </button>
+                  )}
 
-                {/* 3. Backup, Restore & Excel Exports */}
-                {onOpenBackupExport && (
-                  <button
-                    type="button"
-                    onClick={onOpenBackupExport}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
-                    title="JSON Backups and Multi-Sheet Annual Excel Workbook Exports"
-                  >
-                    <span>💾</span>
-                    <span className="hidden md:inline">Backup & Exports</span>
-                  </button>
-                )}
+                  {onOpenBackupExport && (
+                    <button
+                      type="button"
+                      onClick={onOpenBackupExport}
+                      className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                      title="JSON Backups and Multi-Sheet Annual Excel Workbook Exports"
+                    >
+                      <span>💾</span>
+                      <span>Backup & Exports</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Mobile Admin Quick Dropdown Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setMobileAdminMenuOpen(!mobileAdminMenuOpen)}
+                  className="lg:hidden p-1.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold"
+                  title="Admin Tools"
+                >
+                  ⚙️
+                </button>
               </div>
             ) : currentRole === 'watchman' ? (
-              <div className="flex items-center space-x-1.5 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">
-                <span className="w-2 h-2 rounded-full bg-purple-600"></span>
-                <span className="text-xs font-black text-purple-900 tracking-wide">
-                  👮 Watchman Mode
+              <div className="flex items-center space-x-1 bg-purple-50 border border-purple-200 px-2 sm:px-2.5 py-1 rounded-xl">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+                <span className="text-[11px] sm:text-xs font-black text-purple-900 tracking-wide">
+                  👮 Watchman
                 </span>
               </div>
             ) : (
-              /* Resident Flat Label + Change Password */
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs">
+              /* Flat Owner: Badge + Change Password */
+              <div className="flex items-center space-x-1 sm:space-x-1.5">
+                <div className="flex items-center space-x-1.5 bg-emerald-50 border border-emerald-300 px-2 sm:px-3 py-1 rounded-xl shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span className="text-xs font-black text-emerald-900 tracking-wide">
-                    🏠 Flat {selectedFlat}
+                    Flat {selectedFlat}
                   </span>
                 </div>
                 {onOpenChangePassword && (
                   <button
                     type="button"
                     onClick={onOpenChangePassword}
-                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                    className="flex items-center space-x-1 px-2 sm:px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
                     title="Change your personal flat password"
                   >
                     <span>🔐</span>
-                    <span className="hidden sm:inline">Change Password</span>
+                    <span className="hidden sm:inline">Change PIN</span>
                   </button>
                 )}
               </div>
             )}
 
-            {/* Month Selector */}
-            <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl">
-              <Calendar size={14} className="text-slate-500" />
+            {/* Master Month Selector */}
+            <div className="flex items-center space-x-1 bg-slate-50 border border-slate-200 px-2 py-1 rounded-xl max-w-[130px] sm:max-w-none">
+              <Calendar size={13} className="text-slate-500 shrink-0 hidden sm:block" />
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                className="bg-transparent text-[11px] sm:text-xs font-bold text-slate-800 focus:outline-none cursor-pointer truncate"
               >
                 {availableMonths.map(m => (
-                  <option key={m} value={m}>{m} — {cycleStatuses[m] === 'legacy-closed' ? 'Legacy closed' : cycleStatuses[m] === 'initialization-required' ? 'Needs initialization' : cycleStatuses[m] || 'Not open'}</option>
+                  <option key={m} value={m}>{m} {cycleStatuses[m] === 'open' ? '• open' : ''}</option>
                 ))}
               </select>
             </div>
@@ -155,17 +167,49 @@ export const Navbar: React.FC<NavbarProps> = ({
             {onLogout && (
               <button
                 onClick={onLogout}
-                title="Log out of current role"
-                className="px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl hover:bg-rose-50 transition-colors"
+                title="Log out"
+                className="px-2 sm:px-2.5 py-1 text-xs font-bold text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl hover:bg-rose-50 transition-colors shrink-0"
               >
                 Logout
               </button>
             )}
-
           </div>
         </div>
 
-          {/* Navigation Tabs based on Role (Desktop) */}
+        {/* Mobile Admin Expandable Menu Drawer */}
+        {currentRole === 'admin' && mobileAdminMenuOpen && (
+          <div className="lg:hidden py-2 px-1 border-t border-slate-100 flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-1">
+            {onOpenSecurity && (
+              <button
+                type="button"
+                onClick={() => { onOpenSecurity(); setMobileAdminMenuOpen(false); }}
+                className="flex-1 min-w-[100px] flex items-center justify-center space-x-1 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-900 text-xs font-bold border border-blue-200"
+              >
+                <span>🛡️ Security</span>
+              </button>
+            )}
+            {onOpenRatePolicy && (
+              <button
+                type="button"
+                onClick={() => { onOpenRatePolicy(); setMobileAdminMenuOpen(false); }}
+                className="flex-1 min-w-[100px] flex items-center justify-center space-x-1 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 text-xs font-bold border border-amber-200"
+              >
+                <span>⚙️ Rates</span>
+              </button>
+            )}
+            {onOpenBackupExport && (
+              <button
+                type="button"
+                onClick={() => { onOpenBackupExport(); setMobileAdminMenuOpen(false); }}
+                className="flex-1 min-w-[100px] flex items-center justify-center space-x-1 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-900 text-xs font-bold border border-emerald-200"
+              >
+                <span>💾 Backup/Excel</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Navigation Tabs based on Role (Desktop View) */}
         <div className="hidden md:flex space-x-1 overflow-x-auto py-2 scrollbar-none border-t border-slate-100">
           {currentRole === 'admin' && (
             <>
@@ -199,8 +243,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Sticky Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-lg z-50 px-2 py-1.5 flex justify-around items-center">
+      {/* Touch-Friendly Sticky Bottom Navigation Bar (Smartphones: sm:hidden) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-xl z-50 px-1 py-1 flex justify-around items-center">
         {currentRole === 'admin' && (
           <>
             <MobileTabBtn id="dashboard" label="Home" icon={<Building size={18} />} active={activeTab === 'dashboard'} onClick={setActiveTab} />
@@ -215,9 +259,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {currentRole === 'user' && (
           <>
-            <MobileTabBtn id="my-flat" label={`Dashboard`} icon={<Building size={18} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
-            <MobileTabBtn id="resident-history" label="History" icon={<Receipt size={18} />} active={activeTab === 'resident-history'} onClick={setActiveTab} />
-            <MobileTabBtn id="water-meter" label="Water" icon={<Droplet size={18} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
+            <MobileTabBtn id="my-flat" label="Dashboard" icon={<Building size={18} />} active={activeTab === 'my-flat'} onClick={setActiveTab} />
+            <MobileTabBtn id="resident-history" label="Receipts" icon={<Receipt size={18} />} active={activeTab === 'resident-history'} onClick={setActiveTab} />
+            <MobileTabBtn id="water-meter" label="Water Table" icon={<Droplet size={18} />} active={activeTab === 'water-meter'} onClick={setActiveTab} />
             <MobileTabBtn id="monthly-statement" label="Statements" icon={<Calendar size={18} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
             <MobileTabBtn id="directory" label="Contacts" icon={<Phone size={18} />} active={activeTab === 'directory'} onClick={setActiveTab} />
           </>
@@ -245,7 +289,7 @@ const TabBtn: React.FC<{
     onClick={() => onClick(id)}
     className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
       active
-        ? 'bg-blue-50 text-blue-700 shadow-sm border border-blue-200/60'
+        ? 'bg-blue-50 text-blue-700 shadow-xs border border-blue-200/60'
         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
     }`}
   >
@@ -263,15 +307,13 @@ const MobileTabBtn: React.FC<{
 }> = ({ id, label, icon, active, onClick }) => (
   <button
     onClick={() => onClick(id)}
-    className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-bold transition-all min-w-[50px] ${
+    className={`flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all ${
       active
-        ? 'text-blue-600 font-extrabold'
+        ? 'text-blue-700 font-bold bg-blue-50/70'
         : 'text-slate-500 hover:text-slate-800'
     }`}
   >
-    <div className={`p-1 rounded-lg ${active ? 'bg-blue-50 text-blue-600' : ''}`}>
-      {icon}
-    </div>
-    <span className="mt-0.5 leading-none">{label}</span>
+    <span className="p-0.5">{icon}</span>
+    <span className="text-[10px] tracking-tight">{label}</span>
   </button>
 );

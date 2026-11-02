@@ -58,8 +58,8 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
         </div>
       </div>
 
-      {/* History Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* History Table (Desktop View) */}
+      <div className="hidden sm:block bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -133,6 +133,62 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Touch-Friendly Vertical List of Receipt Cards (Mobile View: sm:hidden) */}
+      <div className="sm:hidden space-y-3">
+        {flatHistory.map(({ statement, flat }) => {
+          const isPaid = flat.pending <= 1;
+          const waterStatement = allWaterStatements?.find(w => sameCalendarMonth(w.sheet_name, statement.sheet_name));
+          const waterFlat = waterStatement?.flats.find(f => f.flat === selectedFlat);
+          const baseMaint = waterFlat?.mandatory_maintenance || 1400;
+          const waterCost = waterFlat ? waterFlat.water_charge : Math.max(0, flat.actual - baseMaint);
+
+          return (
+            <div key={statement.sheet_name} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-slate-900 text-sm">{statement.sheet_name}</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                  isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {isPaid ? 'Paid' : 'Due'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-100">
+                <div>
+                  <span className="text-[10px] text-slate-400 block font-medium">Actual Bill</span>
+                  <span className="font-bold text-slate-900 font-mono text-sm">{formatINR(flat.actual)}</span>
+                  {waterCost > 0 && (
+                    <span className="text-[9px] text-slate-400 block">₹{baseMaint} base + {formatINR(waterCost)} wtr</span>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-medium">Amount Paid</span>
+                  <span className="font-bold text-emerald-700 font-mono text-sm">{formatINR(flat.paid)}</span>
+                  <span className="text-[9px] text-slate-400 block">Mode: {flat.mode || 'N/A'}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt({
+                  statementTitle: statement.title || statement.sheet_name,
+                  flatData: flat,
+                  baseMaintenance: baseMaint,
+                  waterCharge: waterCost,
+                  consumedLiters: waterFlat?.liters,
+                  literRate: waterStatement?.liter_per_charge
+                })}
+                className="w-full py-2 bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-800 text-xs font-bold rounded-xl flex items-center justify-center space-x-1.5 transition-all shadow-2xs"
+              >
+                <Receipt size={14} />
+                <span>View Official Receipt</span>
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {/* Official Maintenance Receipt Modal */}
