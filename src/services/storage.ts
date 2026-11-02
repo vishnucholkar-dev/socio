@@ -168,12 +168,14 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
       changed = true;
     }
   }
+  // For September Water Statement: every flat's pending_amount represents PRIOR month arrears (August arrears = 0)
   if (sepWater) {
-    const f207SepW = sepWater.flats.find(f => f.flat === 207);
-    if (f207SepW && f207SepW.pending_amount !== f207SepW.actual_amount) {
-      f207SepW.pending_amount = f207SepW.actual_amount;
-      f207SepW.total_payable = f207SepW.actual_amount;
-      changed = true;
+    for (const f of sepWater.flats) {
+      if (f.pending_amount !== 0) {
+        f.pending_amount = 0;
+        f.total_payable = f.actual_amount;
+        changed = true;
+      }
     }
   }
 
@@ -189,12 +191,15 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
       changed = true;
     }
   }
+  // For October Water Statement: only flats with prior arrears (Flat 207) show in pending column
   if (octWater) {
-    const f207OctW = octWater.flats.find(f => f.flat === 207);
-    if (f207OctW && f207OctW.pending_amount !== 2095.8) {
-      f207OctW.pending_amount = 2095.8;
-      f207OctW.total_payable = money(f207OctW.actual_amount + f207OctW.pending_amount);
-      changed = true;
+    for (const f of octWater.flats) {
+      const expectedPending = f.flat === 207 ? 2095.8 : 0;
+      if (f.pending_amount !== expectedPending) {
+        f.pending_amount = expectedPending;
+        f.total_payable = money(f.actual_amount + expectedPending);
+        changed = true;
+      }
     }
   }
 

@@ -420,6 +420,11 @@ runTest('Flat 207 has September 2026 recorded as Due and carries into October 20
   assert.strictEqual(f207Sep.pending, 2095.8, 'September pending is 2095.8 (~2096)');
   assert.strictEqual(f207Sep.status, 'Due', 'September status is Due');
 
+  const sepWater = data.water_statements.find(s => s.sheet_name.includes('September') && s.sheet_name.includes('2026'));
+  const f207SepW = sepWater.flats.find(f => f.flat === 207);
+  assert.strictEqual(f207SepW.pending_amount, 0.0, 'September water pending_amount is 0 for all flats');
+  assert.strictEqual(f207SepW.total_payable, 2095.8, 'September water total_payable is 2095.8');
+
   const f207Oct = octMaint.flats.find(f => f.flat === 207);
   assert(f207Oct, 'Flat 207 exists in October');
   assert.strictEqual(f207Oct.actual, 2235.22, 'October month assessment is 2235.22 (~2235)');
@@ -429,8 +434,12 @@ runTest('Flat 207 has September 2026 recorded as Due and carries into October 20
 
   const f207OctW = octWater.flats.find(f => f.flat === 207);
   assert(f207OctW, 'Flat 207 exists in October Water');
-  assert.strictEqual(f207OctW.pending_amount, 2095.8, 'October water pending_amount carries 2095.8');
+  assert.strictEqual(f207OctW.pending_amount, 2095.8, 'October water pending_amount carries 2095.8 for Flat 207');
   assert.strictEqual(f207OctW.total_payable, 4331.02, 'October water total_payable is 4331.02');
+
+  // Verify other 31 flats have pending_amount === 0 in October Water Statement
+  const otherFlatsWithPending = octWater.flats.filter(f => f.flat !== 207 && f.pending_amount > 0);
+  assert.strictEqual(otherFlatsWithPending.length, 0, 'No other flat should have pending in October water statement');
 });
 
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
