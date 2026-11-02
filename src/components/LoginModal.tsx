@@ -31,7 +31,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         saveSession(session);
         onLoginSuccess(session);
       } else {
-        setError('Invalid Admin credentials. Default password is "admin" or "1234".');
+        setError('Invalid password. Please check your credentials and try again.');
       }
     } else if (roleTab === 'watchman') {
       if (verifyWatchmanPin(pin)) {
@@ -43,13 +43,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         saveSession(session);
         onLoginSuccess(session);
       } else {
-        setError('Invalid Watchman PIN. Default PIN is "1234".');
+        setError('Invalid Watchman PIN. Please try again.');
       }
     } else {
       // Flat Owner verification
       const parsedFlat = parseInt(flatNumberInput.trim(), 10);
       if (!Number.isFinite(parsedFlat) || !flatsList.includes(parsedFlat)) {
-        setError(`Please enter a valid Rockcliff flat number (e.g. 101-108, 201-208, 301-308, 401-408).`);
+        setError(`Please enter a valid flat number (101–108, 201–208, 301–308, 401–408).`);
         return;
       }
 
@@ -63,7 +63,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
         saveSession(session);
         onLoginSuccess(session);
       } else {
-        setError(`Invalid PIN for Flat ${parsedFlat}. Default PIN is your flat number ("${parsedFlat}") or "1234".`);
+        setError(`Invalid password for Flat ${parsedFlat}. Please try again.`);
       }
     }
   };
@@ -131,13 +131,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              {roleTab === 'user' ? 'Flat Password / PIN' : roleTab === 'admin' ? 'Admin Password' : '4-Digit Watchman PIN'}
+              {roleTab === 'user' ? 'Password' : roleTab === 'admin' ? 'Admin Password' : 'Watchman PIN'}
             </label>
             <input
               type="password"
               value={pin}
               onChange={(e) => { setPin(e.target.value); setError(null); }}
-              placeholder={roleTab === 'user' ? `Default: ${flatNumberInput || '101'} or 1234` : roleTab === 'admin' ? 'Default: admin or 1234' : 'Default: 1234'}
+              placeholder="Enter your password"
               required
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none"
             />
@@ -159,10 +159,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
             </button>
           </div>
         </form>
-
-        <div className="mt-4 pt-3 border-t border-slate-100 text-center text-[11px] text-slate-400">
-          <span>Quick Login Hints: Resident = Flat No | Admin = "admin" | Watchman = "1234"</span>
-        </div>
       </div>
     </div>
   );
