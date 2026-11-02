@@ -180,7 +180,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
   const residentFlatData = currentRole === 'user' ? displayFlats.find(f => f.flat === selectedFlat) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 water-pdf-module-container">
       {cycleStatus !== 'open' && (
         allowOpenAction && onOpenCycle && currentRole === 'admin' ? (
           <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-amber-900">
