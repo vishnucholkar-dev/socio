@@ -308,7 +308,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                   <span>Receipt</span>
                 </button>
 
-                {canEdit && (
+                {canEdit && !isPaid && (
                   <button
                     onClick={() => handleOpenPayment(flat)}
                     className="flex-1 flex items-center justify-center space-x-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold rounded-lg shadow-sm transition-colors"

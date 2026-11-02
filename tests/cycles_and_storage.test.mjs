@@ -442,6 +442,17 @@ runTest('Flat 207 has September 2026 recorded as Due and carries into October 20
   assert.strictEqual(otherFlatsWithPending.length, 0, 'No other flat should have pending in October water statement');
 });
 
+// 15. OCTOBER 2026 CALIBRATED BANK BALANCE AND LIQUID FUNDS
+runTest('October 2026 initializes with Bank Balance = 78,156.04 and Total Liquid Funds = 78,000.00', () => {
+  const data = storage.getApartmentData();
+  const octMaint = data.maintenance_statements.find(s => s.sheet_name.includes('October') && s.sheet_name.includes('2026'));
+
+  assert(octMaint, 'October maintenance statement exists');
+  assert.strictEqual(octMaint.bank_balance, 78156.04, 'October bank balance must be 78,156.04');
+  assert.strictEqual(octMaint.total_balance, 78000.00, 'October total liquid funds must be 78,000.00');
+  assert.strictEqual(octMaint.cash_balance, -156.04, 'October cash in hand balance must be -156.04');
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

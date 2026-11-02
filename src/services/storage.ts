@@ -99,15 +99,14 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     }
   }
 
-  // Single active cycle policy: October 2026 is currently the single open cycle.
-  // November 2026 is not open until October 2026 is closed.
-  if (data.cycles['November 2026'] && data.cycles['November 2026'].status === 'open') {
-    data.cycles['November 2026'] = { status: 'initialization-required', initialized_as: 'legacy' };
-    changed = true;
-  }
-  if (data.cycles['October 2026'] && data.cycles['October 2026'].status !== 'open' && (!data.cycles['November 2026'] || data.cycles['November 2026'].status !== 'open')) {
-    data.cycles['October 2026'] = { status: 'open', opened_at: data.cycles['October 2026']?.opened_at || now() };
-    changed = true;
+  // Single active cycle policy: October 2026 is initially the single open cycle.
+  // Never forcibly reopen or relock cycles if the user has already transitioned cycles in production.
+  const hasAnyOpenCycle = Object.values(data.cycles).some(c => c.status === 'open');
+  if (!hasAnyOpenCycle) {
+    if (data.cycles['October 2026']) {
+      data.cycles['October 2026'] = { status: 'open', opened_at: data.cycles['October 2026']?.opened_at || now() };
+      changed = true;
+    }
   }
   for (const statement of data.maintenance_statements) {
     if (!Array.isArray(statement.expenses)) { statement.expenses = []; changed = true; }
@@ -182,6 +181,14 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
   const octMaint = data.maintenance_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
   const octWater = data.water_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
   if (octMaint) {
+    if (octMaint.bank_balance === 0 && octMaint.cash_balance === 0 && octMaint.total_balance === 0) {
+      octMaint.bank_balance = 78156.04;
+      octMaint.bank_opening = 78156.04;
+      octMaint.cash_balance = -156.04;
+      octMaint.cash_opening = -156.04;
+      octMaint.total_balance = 78000.00;
+      changed = true;
+    }
     const f207Oct = octMaint.flats.find(f => f.flat === 207);
     if (f207Oct && f207Oct.previous_pending !== 2095.8) {
       f207Oct.previous_pending = 2095.8;
@@ -208,8 +215,17 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
   return { data, changed };
 }
 
+const PRODUCTION_SNAPSHOT_KEY = 'rockcliff_production_snapshot_latest';
+
 function persist(data: ApartmentData): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const jsonStr = JSON.stringify(data);
+  localStorage.setItem(STORAGE_KEY, jsonStr);
+  // Rolling safety snapshot: protects against accidental local storage wipes
+  try {
+    localStorage.setItem(PRODUCTION_SNAPSHOT_KEY, jsonStr);
+  } catch (err) {
+    console.warn('Could not write safety snapshot:', err);
+  }
   window.dispatchEvent(new CustomEvent('apartment-data-changed', { detail: data }));
 }
 
@@ -234,16 +250,18 @@ export function getApartmentData(): ApartmentData {
   }
 
   // First-run fallback only: an existing saved value is never replaced with seed data.
+  // Deep clone seedData to prevent in-memory mutation across test runs or sessions
+  const freshSeed = JSON.parse(JSON.stringify(seedData));
   const initialData: ApartmentData = {
-    apartment_name: seedData.apartment_name || "Rockcliff 'B' Block",
-    total_flats: seedData.total_flats || 32,
-    flats: seedData.flats || [],
-    water_statements: seedData.water_statements as unknown as WaterStatement[],
-    maintenance_statements: seedData.maintenance_statements as unknown as MaintenanceStatement[],
-    contacts: DEFAULT_CONTACTS,
-    billing_config_history: DEFAULT_BILLING_CONFIG_HISTORY,
+    apartment_name: freshSeed.apartment_name || "Rockcliff 'B' Block",
+    total_flats: freshSeed.total_flats || 32,
+    flats: freshSeed.flats || [],
+    water_statements: freshSeed.water_statements as unknown as WaterStatement[],
+    maintenance_statements: freshSeed.maintenance_statements as unknown as MaintenanceStatement[],
+    contacts: JSON.parse(JSON.stringify(DEFAULT_CONTACTS)),
+    billing_config_history: JSON.parse(JSON.stringify(DEFAULT_BILLING_CONFIG_HISTORY)),
     cycles: {},
-    extracted_at: seedData.extracted_at || now()
+    extracted_at: freshSeed.extracted_at || now()
   };
   const normalized = normalizeData(initialData);
   persist(normalized.data);
