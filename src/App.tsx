@@ -39,7 +39,9 @@ import { ExpensesModule } from './components/ExpensesModule';
 import { MonthlyStatement } from './components/MonthlyStatement';
 import { YearlyStatement } from './components/YearlyStatement';
 import { DirectoryModule } from './components/DirectoryModule';
-import { SettingsModal } from './components/SettingsModal';
+import { SecurityCredentialsModal } from './components/SecurityCredentialsModal';
+import { RatePolicyModal } from './components/RatePolicyModal';
+import { BackupAndExportModal } from './components/BackupAndExportModal';
 import { CycleManagement } from './components/CycleManagement';
 import { LoginModal } from './components/LoginModal';
 import { ResidentHistory } from './components/ResidentHistory';
@@ -54,7 +56,9 @@ export const App: React.FC = () => {
   const currentRole = session?.role || 'user';
   const selectedFlat = session?.flatNumber || 101;
   const [activeTab, setActiveTab] = useState<string>(() => session?.role === 'admin' ? 'dashboard' : 'my-flat');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [isRatePolicyOpen, setIsRatePolicyOpen] = useState(false);
+  const [isBackupExportOpen, setIsBackupExportOpen] = useState(false);
   const [isResidentPwdOpen, setIsResidentPwdOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -164,7 +168,9 @@ export const App: React.FC = () => {
           setIsLoginOpen(true);
         }}
         onOpenChangePassword={() => setIsResidentPwdOpen(true)}
-        onOpenSecurity={() => setIsSettingsOpen(true)}
+        onOpenSecurity={() => setIsSecurityOpen(true)}
+        onOpenRatePolicy={() => setIsRatePolicyOpen(true)}
+        onOpenBackupExport={() => setIsBackupExportOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -204,7 +210,7 @@ export const App: React.FC = () => {
             onSaveStatement={handleSaveWaterStatement}
             onSaveSingleReading={handleSaveSingleReading}
             cycleStatus={selectedCycleStatus}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => setIsRatePolicyOpen(true)}
             onOpenCycle={handleOpenCycle}
             priorCycleClosed={isPriorCycleClosed}
             allowOpenAction={allowOpenAction}
@@ -302,34 +308,33 @@ export const App: React.FC = () => {
         flatsList={data.flats}
       />
 
-      {/* Settings Modal (Mandatory Maintenance & Common Utilization Configuration with History) */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+      {/* 1. Security & Credentials Management Modal */}
+      <SecurityCredentialsModal
+        isOpen={isSecurityOpen}
+        onClose={() => setIsSecurityOpen(false)}
+        flatsList={data.flats}
+      />
+
+      {/* 2. Mandatory Maintenance & Common Utility Settings Modal */}
+      <RatePolicyModal
+        isOpen={isRatePolicyOpen}
+        onClose={() => setIsRatePolicyOpen(false)}
         configHistory={data.billing_config_history}
         onAddConfig={handleAddConfig}
-        onExportBackup={() => {
-          const jsonStr = exportApartmentDataBackup();
-          const blob = new Blob([jsonStr], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `rockcliff-society-backup-${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }}
-        onImportBackup={(jsonContent) => {
-          runAction(() => importApartmentDataBackup(jsonContent));
-        }}
-        flatsList={data.flats}
+      />
+
+      {/* 3. Backup, Restore & Multi-Sheet Annual Excel Exports Modal */}
+      <BackupAndExportModal
+        isOpen={isBackupExportOpen}
+        onClose={() => setIsBackupExportOpen(false)}
+        data={data}
+        onDataImported={(updated) => setData(updated)}
       />
 
       {/* Mobile Floating Action Button to Toggle Role or Settings */}
       {currentRole === 'admin' && (
         <button
-          onClick={() => setIsSettingsOpen(true)}
+          onClick={() => setIsRatePolicyOpen(true)}
           title="Mandatory Maintenance & Utility Rate Settings"
           className="md:hidden fixed right-4 bottom-20 z-40 w-12 h-12 rounded-full bg-blue-600 text-white shadow-xl flex items-center justify-center text-lg active:scale-95 transition-transform"
         >

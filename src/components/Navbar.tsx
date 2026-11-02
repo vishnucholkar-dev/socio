@@ -17,6 +17,8 @@ interface NavbarProps {
   onLogout?: () => void;
   onOpenChangePassword?: () => void;
   onOpenSecurity?: () => void;
+  onOpenRatePolicy?: () => void;
+  onOpenBackupExport?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -33,7 +35,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   flatsList,
   onLogout,
   onOpenChangePassword,
-  onOpenSecurity
+  onOpenSecurity,
+  onOpenRatePolicy,
+  onOpenBackupExport
 }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm no-print">
@@ -54,16 +58,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Status or Resident Static Badge + Quick Security Action */}
+          {/* Role Status or Resident Static Badge + 3 Dedicated Admin Controls */}
           <div className="flex items-center space-x-2">
             {currentRole === 'admin' ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
                   <span className="w-2 h-2 rounded-full bg-blue-600"></span>
                   <span className="text-xs font-black text-blue-900 tracking-wide">
                     👑 Admin Panel
                   </span>
                 </div>
+
+                {/* 1. Security & Credentials */}
                 {onOpenSecurity && (
                   <button
                     type="button"
@@ -72,7 +78,33 @@ export const Navbar: React.FC<NavbarProps> = ({
                     title="Change Admin Password, Watchman PIN & Reset Flat PINs"
                   >
                     <span>🛡️</span>
-                    <span className="hidden sm:inline">Security & Credentials</span>
+                    <span className="hidden md:inline">Security & PINs</span>
+                  </button>
+                )}
+
+                {/* 2. Rate Policy & Utility Settings */}
+                {onOpenRatePolicy && (
+                  <button
+                    type="button"
+                    onClick={onOpenRatePolicy}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-50 hover:text-amber-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                    title="Configure Base Maintenance & Common Utility Deductions"
+                  >
+                    <span>⚙️</span>
+                    <span className="hidden md:inline">Rate Settings</span>
+                  </button>
+                )}
+
+                {/* 3. Backup, Restore & Excel Exports */}
+                {onOpenBackupExport && (
+                  <button
+                    type="button"
+                    onClick={onOpenBackupExport}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                    title="JSON Backups and Multi-Sheet Annual Excel Workbook Exports"
+                  >
+                    <span>💾</span>
+                    <span className="hidden md:inline">Backup & Exports</span>
                   </button>
                 )}
               </div>
