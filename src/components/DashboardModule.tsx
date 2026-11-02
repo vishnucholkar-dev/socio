@@ -22,7 +22,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
   const currentMaint = data.maintenance_statements.find(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentWater = data.water_statements.find(w => sameCalendarMonth(w.sheet_name, selectedMonth));
 
-  // Current Month Specific
+  // Current Month Specific Metrics
   const totalBilled = currentMaint?.flats.reduce((acc, f) => acc + (f.actual || 0), 0) || 0;
   const totalCollected = currentMaint?.flats.reduce((acc, f) => acc + (f.paid || 0), 0) || 0;
   const totalPending = currentMaint?.flats.reduce((acc, f) => acc + (f.pending || 0), 0) || 0;
@@ -41,31 +41,65 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
     return sum + (w.total_water_consumption_liters || 0);
   }, 0);
 
-  const totalSocietyFlats = data.flats.length || 32;
-
   // Find flats with pending dues for current month
   const highDueFlats = currentMaint?.flats
     .filter(f => f.pending > 10)
     .sort((a, b) => b.pending - a.pending) || [];
 
-  // Recent 6 Months Trend for Visual Curve
-  const recentStatements = [...data.maintenance_statements]
-    .sort((a, b) => new Date(`${a.sheet_name} 1 UTC`).getTime() - new Date(`${b.sheet_name} 1 UTC`).getTime())
-    .slice(-8);
+  // Parse current active cycle year
+  const activeYearMatch = selectedMonth.match(/202[4-6]/);
+  const initialYear = activeYearMatch ? Number(activeYearMatch[0]) : 2026;
 
-  const trendData = recentStatements.map(m => {
-    const col = m.flats.reduce((s, f) => s + (f.paid || 0), 0);
-    const exp = m.expenses.reduce((s, e) => s + (e.status !== 'Billed' ? (e.amount || 0) : 0), 0);
-    const shortLabel = m.sheet_name.split(' ')[0].slice(0, 3) + ' ' + (m.sheet_name.split(' ')[1] || '').slice(-2);
+  // Dedicated Year Selection State for Admin Financial Trend Chart
+  const [trendYear, setTrendYear] = useState<number>(initialYear);
+
+  // Strict Calendar Month Mapping (Month 1 to 12)
+  const monthOrder = [
+    { num: 1, key: 'jan', short: 'Jan', full: 'January' },
+    { num: 2, key: 'feb', short: 'Feb', full: 'February' },
+    { num: 3, key: 'mar', short: 'Mar', full: 'March' },
+    { num: 4, key: 'apr', short: 'Apr', full: 'April' },
+    { num: 5, key: 'may', short: 'May', full: 'May' },
+    { num: 6, key: 'jun', short: 'Jun', full: 'June' },
+    { num: 7, key: 'jul', short: 'Jul', full: 'July' },
+    { num: 8, key: 'aug', short: 'Aug', full: 'August' },
+    { num: 9, key: 'sep', short: 'Sep', full: 'September' },
+    { num: 10, key: 'oct', short: 'Oct', full: 'October' },
+    { num: 11, key: 'nov', short: 'Nov', full: 'November' },
+    { num: 12, key: 'dec', short: 'Dec', full: 'December' }
+  ];
+
+  const yearStatements = data.maintenance_statements.filter(m => m.sheet_name.includes(String(trendYear)));
+
+  // Build sorted data strictly by month number (1 to 12) for the selected year
+  const yearMonthlyData = monthOrder.map(mInfo => {
+    const matchedMaint = yearStatements.find(s => {
+      const lower = s.sheet_name.toLowerCase();
+      return lower.includes(mInfo.key) || lower.includes(mInfo.full.toLowerCase());
+    });
+
+    if (!matchedMaint) return null;
+
+    const col = matchedMaint.flats.reduce((s, f) => s + (f.paid || 0), 0);
+    const exp = matchedMaint.expenses.reduce((s, e) => s + (e.status !== 'Billed' ? (e.amount || 0) : 0), 0);
+    const billed = matchedMaint.flats.reduce((s, f) => s + (f.actual || 0), 0);
+
     return {
-      month: m.sheet_name,
-      shortLabel,
+      monthNum: mInfo.num,
+      shortLabel: mInfo.short,
+      fullSheetName: matchedMaint.sheet_name,
       collected: col,
-      expenses: exp
+      expenses: exp,
+      billed: billed,
+      margin: col - exp
     };
-  });
+  }).filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((a, b) => a.monthNum - b.monthNum);
 
-  const maxTrendVal = Math.max(...trendData.map(t => Math.max(t.collected, t.expenses)), 95000);
+  const maxValInYear = Math.max(...yearMonthlyData.map(d => Math.max(d.collected, d.expenses)), 95000);
+  const totalYearCollections = yearMonthlyData.reduce((s, d) => s + d.collected, 0);
+  const totalYearExpenses = yearMonthlyData.reduce((s, d) => s + d.expenses, 0);
+  const totalYearMargin = totalYearCollections - totalYearExpenses;
 
   return (
     <div className="space-y-6">
@@ -196,53 +230,121 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
 
       {/* Two Column Grid: Financial Trend Curve & Delinquent Follow-up */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Multi-Month Financial Trend Chart */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Financial Performance Curve</span>
-              <h3 className="text-sm font-bold text-slate-900 mt-0.5">Collections vs Expenses Trend</h3>
+        {/* Redesigned Multi-Month Financial Trend Chart with Year Selector & Calendar Month Sorting */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Financial Performance Curve</span>
+                <h3 className="text-sm font-bold text-slate-900 mt-0.5">Collections vs Expenses Trend</h3>
+              </div>
+
+              {/* Year Selector Dropdown for this Chart Only */}
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-500">Year:</span>
+                <select
+                  value={trendYear}
+                  onChange={(e) => setTrendYear(Number(e.target.value))}
+                  className="px-2.5 py-1 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value={2026}>Year 2026</option>
+                  <option value={2025}>Year 2025</option>
+                  <option value={2024}>Year 2024</option>
+                </select>
+              </div>
             </div>
-            <div className="flex items-center space-x-3 text-xs font-bold">
-              <span className="flex items-center space-x-1 text-emerald-700">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-                <span>Collections</span>
-              </span>
-              <span className="flex items-center space-x-1 text-rose-600">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
-                <span>Expenses</span>
+
+            {/* Legend & Summary */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold my-3">
+              <div className="flex items-center space-x-3">
+                <span className="flex items-center space-x-1 text-emerald-700">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span>
+                  <span>Collections (₹)</span>
+                </span>
+                <span className="flex items-center space-x-1 text-rose-600">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block"></span>
+                  <span>Paid Expenses (₹)</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Months sorted strictly Jan → Dec
               </span>
             </div>
+
+            {/* Responsive SVG Chart with strictly Calendar Month Order */}
+            {yearMonthlyData.length > 0 ? (
+              <div className="overflow-x-auto pt-1">
+                <svg viewBox="0 0 540 190" className="w-full h-48 select-none">
+                  {/* Grid Lines */}
+                  <line x1="30" y1="20" x2="520" y2="20" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="30" y1="65" x2="520" y2="65" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="30" y1="110" x2="520" y2="110" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="30" y1="150" x2="520" y2="150" stroke="#cbd5e1" strokeWidth="1.5" />
+
+                  {yearMonthlyData.map((d, i) => {
+                    const totalSlots = yearMonthlyData.length;
+                    const step = (520 - 40) / Math.max(1, totalSlots);
+                    const x = 40 + i * step + step / 2;
+                    const colH = Math.max(3, (d.collected / maxValInYear) * 125);
+                    const expH = Math.max(3, (d.expenses / maxValInYear) * 125);
+
+                    return (
+                      <g key={d.monthNum} className="group">
+                        {/* Collected Bar */}
+                        <rect
+                          x={x - 13}
+                          y={150 - colH}
+                          width="11"
+                          height={colH}
+                          rx="3"
+                          fill="#10b981"
+                          className="hover:opacity-90 transition-opacity"
+                        />
+                        {/* Expense Bar */}
+                        <rect
+                          x={x + 2}
+                          y={150 - expH}
+                          width="11"
+                          height={expH}
+                          rx="3"
+                          fill="#f43f5e"
+                          className="hover:opacity-90 transition-opacity"
+                        />
+                        {/* Month label in calendar order */}
+                        <text x={x} y="168" textAnchor="middle" fontSize="9.5" fontWeight="bold" fill="#475569">
+                          {d.shortLabel}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                No statement records found for Year {trendYear}.
+              </div>
+            )}
           </div>
 
-          <div className="mt-4">
-            <svg viewBox="0 0 540 180" className="w-full h-44 select-none">
-              <line x1="30" y1="20" x2="520" y2="20" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="70" x2="520" y2="70" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="120" x2="520" y2="120" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="150" x2="520" y2="150" stroke="#cbd5e1" strokeWidth="1.5" />
-
-              {trendData.map((d, i) => {
-                const step = (520 - 40) / Math.max(1, trendData.length);
-                const x = 40 + i * step + step / 2;
-                const colH = Math.max(4, (d.collected / maxTrendVal) * 120);
-                const expH = Math.max(4, (d.expenses / maxTrendVal) * 120);
-
-                return (
-                  <g key={d.month}>
-                    {/* Collected Bar */}
-                    <rect x={x - 12} y={150 - colH} width="10" height={colH} rx="3" fill="#10b981" />
-                    {/* Expense Bar */}
-                    <rect x={x + 2} y={150 - expH} width="10" height={expH} rx="3" fill="#f43f5e" />
-                    {/* Month label */}
-                    <text x={x} y="168" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#64748b">
-                      {d.shortLabel}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
+          {/* Annual Performance Summary Strip for Selected Year */}
+          {yearMonthlyData.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Year Collections</span>
+                <span className="font-mono font-bold text-emerald-700 text-xs">{formatINR(totalYearCollections)}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Year Expenses</span>
+                <span className="font-mono font-bold text-rose-600 text-xs">{formatINR(totalYearExpenses)}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Net Margin</span>
+                <span className={`font-mono font-bold text-xs ${totalYearMargin >= 0 ? 'text-blue-700' : 'text-rose-600'}`}>
+                  {totalYearMargin >= 0 ? '+' : ''}{formatINR(totalYearMargin)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Delinquent Flats Follow-up */}
