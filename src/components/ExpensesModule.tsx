@@ -100,8 +100,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const [entryDate, setEntryDate] = useState<string>(() => getFirstOfMonth(selectedMonth));
   const [desc, setDesc] = useState('');
   const [amt, setAmt] = useState<number>(0);
-  const [category, setCategory] = useState('Water Tankers');
-  const [inflowCategory, setInflowCategory] = useState('Vendor Ad Rent (Lift / Gate Displays)');
+  const [category, setCategory] = useState('');
+  const [inflowCategory, setInflowCategory] = useState('');
   const [expenseType, setExpenseType] = useState<'Cash' | 'Bank'>('Cash');
   const [entryKind, setEntryKind] = useState<'expense' | 'inflow' | 'transfer'>('expense');
   const [expenseStatus, setExpenseStatus] = useState<'Paid' | 'Billed'>('Paid');
@@ -123,6 +123,11 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const [adjustAmount, setAdjustAmount] = useState<string>('');
   const [adjustReason, setAdjustReason] = useState<string>('');
   const [adjustError, setAdjustError] = useState<string | null>(null);
+
+  // Settlement (Mark as Paid) Modal State
+  const [settlingExpense, setSettlingExpense] = useState<ExpenseItem | null>(null);
+  const [settleChannel, setSettleChannel] = useState<'Cash' | 'Bank'>('Bank');
+  const [settleDate, setSettleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   if (!currentStatement) {
     return (
@@ -178,9 +183,10 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     setEditingTransferId(null);
     setDesc('');
     setAmt(0);
-    setCategory('Water Tankers');
-    setInflowCategory('Vendor Ad Rent (Lift / Gate Displays)');
+    setCategory('');
+    setInflowCategory('');
     setExpenseType('Cash');
+    setExpenseStatus('Paid');
     setInflowDescription('');
     setInflowAmount(0);
     setInflowType('Cash');
@@ -245,6 +251,10 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     const saveMonth = editingExpenseId || editingInflowId || editingTransferId ? currentStatement.sheet_name : targetCycle;
 
     if (entryKind === 'expense') {
+      if (!category) {
+        alert('Please select an Expense Category.');
+        return;
+      }
       if (!desc.trim() || !Number.isFinite(amt) || amt <= 0) return;
       const next: ExpenseItem = {
         ...(editingExpense || {}),
@@ -257,6 +267,10 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
       };
       saved = editingExpenseId ? onUpdateExpense(saveMonth, editingExpenseId, next) : onAddExpense(saveMonth, next);
     } else if (entryKind === 'inflow') {
+      if (!inflowCategory) {
+        alert('Please select an Inflow Category.');
+        return;
+      }
       if (!inflowDescription.trim() || !Number.isFinite(inflowAmount) || inflowAmount <= 0) return;
       const next: InflowItem = {
         description: inflowDescription.trim(),
@@ -589,13 +603,11 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                onUpdateExpense(currentStatement.sheet_name, exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`, {
-                                  ...exp,
-                                  status: 'Paid',
-                                  paid_date: new Date().toISOString().slice(0, 10)
-                                });
+                                setSettlingExpense(exp);
+                                setSettleChannel(exp.type || 'Bank');
+                                setSettleDate(new Date().toISOString().slice(0, 10));
                               }}
-                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold mr-2 shadow-2xs transition-all"
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold mr-2 shadow-2xs transition-all active:scale-95"
                             >
                               Mark as Paid
                             </button>
@@ -688,6 +700,76 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 </div>
               )}
 
+              {/* 1. CATEGORY FIRST (Mandatory with no default value) */}
+              {entryKind === 'expense' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                    Expense Category <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      setCategory(selected);
+                      // Auto-populate description if empty or previous category
+                      if (!desc || PRESET_EXPENSE_CATEGORIES.includes(desc)) {
+                        setDesc(selected);
+                      }
+                    }}
+                    required
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="" disabled>-- Select Expense Category --</option>
+                    {PRESET_EXPENSE_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {entryKind === 'inflow' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                    Inflow Category <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={inflowCategory}
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      setInflowCategory(selected);
+                      // Auto-populate description
+                      if (!inflowDescription || PRESET_INFLOW_CATEGORIES.includes(inflowDescription)) {
+                        setInflowDescription(selected);
+                      }
+                    }}
+                    required
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                  >
+                    <option value="" disabled>-- Select Inflow Category --</option>
+                    {PRESET_INFLOW_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* 2. DESCRIPTION (Auto-populated from category, editable) */}
+              {entryKind !== 'transfer' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {entryKind === 'expense' ? 'Expense Description' : 'Inflow Description'} <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Enter description..."
+                    value={entryKind === 'expense' ? desc : inflowDescription}
+                    onChange={(e) => entryKind === 'expense' ? setDesc(e.target.value) : setInflowDescription(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Transaction Date</label>
                 <input
@@ -701,18 +783,6 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 />
               </div>
 
-              {entryKind !== 'transfer' && <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">{entryKind === 'expense' ? 'Expense Description' : 'Inflow Description'}</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Water Tanker 2 loads, Sump motor capacitor"
-                  value={entryKind === 'expense' ? desc : inflowDescription}
-                  onChange={(e) => entryKind === 'expense' ? setDesc(e.target.value) : setInflowDescription(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>}
-
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Amount (₹)</label>
                 <input
@@ -725,32 +795,6 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
-
-              {entryKind === 'expense' && <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  {PRESET_EXPENSE_CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>}
-
-              {entryKind === 'inflow' && <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Inflow Category</label>
-                <select
-                  value={inflowCategory}
-                  onChange={(e) => setInflowCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                >
-                  {PRESET_INFLOW_CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>}
 
               {entryKind === 'expense' && (
                 <div>
@@ -787,47 +831,76 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 </div>
               )}
 
-              {entryKind === 'expense' ? <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {expenseStatus === 'Billed' ? 'Payment Account Channel (When Settled)' : 'Paid Via'}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExpenseType('Cash')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 ${
-                      expenseType === 'Cash'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <Wallet size={15} />
-                    <span>Cash (EA)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExpenseType('Bank')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 ${
-                      expenseType === 'Bank'
-                        ? 'border-blue-600 bg-blue-50 text-blue-700'
-                        : 'border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    <CreditCard size={15} />
-                    <span>Bank (EB)</span>
-                  </button>
+              {/* Payment Channel: HIDDEN when Billed (Pay Later) is chosen! */}
+              {entryKind === 'expense' ? (
+                expenseStatus === 'Paid' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Paid Via</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpenseType('Cash')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 ${
+                          expenseType === 'Cash'
+                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <Wallet size={15} />
+                        <span>Cash (EA)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpenseType('Bank')}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 ${
+                          expenseType === 'Bank'
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <CreditCard size={15} />
+                        <span>Bank (EB)</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              ) : entryKind === 'inflow' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Received Into</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Cash', 'Bank'] as const).map(channel => (
+                      <button
+                        key={channel}
+                        type="button"
+                        onClick={() => setInflowType(channel)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold ${
+                          inflowType === channel ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {channel}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div> : entryKind === 'inflow' ? <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Received Into</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Cash', 'Bank'] as const).map(channel => <button key={channel} type="button" onClick={() => setInflowType(channel)} className={`py-2 px-3 rounded-xl border text-xs font-bold ${inflowType === channel ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'}`}>{channel}</button>)}
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer From</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Cash', 'Bank'] as const).map(channel => (
+                      <button
+                        key={channel}
+                        type="button"
+                        onClick={() => setTransferFrom(channel)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-bold ${
+                          transferFrom === channel ? 'border-violet-600 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {channel} → {channel === 'Cash' ? 'Bank' : 'Cash'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div> : <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Transfer From</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Cash', 'Bank'] as const).map(channel => <button key={channel} type="button" onClick={() => setTransferFrom(channel)} className={`py-2 px-3 rounded-xl border text-xs font-bold ${transferFrom === channel ? 'border-violet-600 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-600'}`}>{channel} → {channel === 'Cash' ? 'Bank' : 'Cash'}</button>)}
-                </div>
-              </div>}
+              )}
 
               <div className="pt-2 flex items-center justify-end space-x-2">
                 <button
@@ -1032,6 +1105,120 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                   className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
                 >
                   Apply Balance Adjustment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Settlement Modal (Mark as Paid - asks Cash or Bank) */}
+      {settlingExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 rounded-xl bg-emerald-100 text-emerald-800 font-bold text-sm">✓</span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Mark Expense as Paid</h3>
+                  <p className="text-[11px] text-slate-500">Settle invoice & deduct balance</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettlingExpense(null)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                onUpdateExpense(currentStatement.sheet_name, settlingExpense.id || `legacy-exp-${currentStatement.expenses.indexOf(settlingExpense)}`, {
+                  ...settlingExpense,
+                  status: 'Paid',
+                  type: settleChannel,
+                  paid_date: settleDate,
+                  date: settleDate
+                });
+                setSettlingExpense(null);
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Invoice / Description</span>
+                <span className="text-sm font-bold text-slate-900 block mt-0.5">{settlingExpense.description}</span>
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-200">
+                  <span className="text-xs text-slate-500">Amount Due:</span>
+                  <span className="text-base font-black font-mono text-emerald-700">{formatINR(settlingExpense.amount)}</span>
+                </div>
+              </div>
+
+              {/* Account Channel Prompt (Cash vs Bank) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                  Disburse Payment From: <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSettleChannel('Bank')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                      settleChannel === 'Bank'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-2xs'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CreditCard size={15} />
+                    <span>Bank (EB)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSettleChannel('Cash')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                      settleChannel === 'Cash'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-2xs'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Wallet size={15} />
+                    <span>Cash (EA)</span>
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Deducts {formatINR(settlingExpense.amount)} from your society {settleChannel} balance.
+                </span>
+              </div>
+
+              {/* Payment Date */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Payment Settlement Date
+                </label>
+                <input
+                  type="date"
+                  value={settleDate}
+                  onChange={(e) => setSettleDate(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setSettlingExpense(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                >
+                  Confirm Payment
                 </button>
               </div>
             </form>
