@@ -42,9 +42,14 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
 
   const totalFlatPaid = currentMaint.flats.reduce((acc, f) => acc + (f.paid || 0), 0);
   const totalFlatPending = currentMaint.flats.reduce((acc, f) => acc + (f.pending || 0), 0);
-  const cashExpenses = currentMaint.expenses.filter(e => (e.type || 'Cash') === 'Cash');
-  const bankExpenses = currentMaint.expenses.filter(e => e.type === 'Bank');
-  const totalExpenses = currentMaint.expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  
+  // Separate Paid disbursements from Billed unpaid liabilities
+  const paidExpenses = currentMaint.expenses.filter(e => e.status !== 'Billed');
+  const billedExpenses = currentMaint.expenses.filter(e => e.status === 'Billed');
+  const cashExpenses = paidExpenses.filter(e => (e.type || 'Cash') === 'Cash');
+  const bankExpenses = paidExpenses.filter(e => e.type === 'Bank');
+  const totalExpenses = paidExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  const totalBilledLiabilities = billedExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -220,7 +225,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {currentMaint.expenses.map((exp, idx) => (
+                  {paidExpenses.map((exp, idx) => (
                     <tr key={idx}>
                       <td className="py-1.5 text-slate-700 font-medium">{exp.description}</td>
                       <td className="py-1.5 text-center">
@@ -233,9 +238,14 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                       </td>
                     </tr>
                   ))}
+                  {paidExpenses.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-3 text-center text-slate-400">No paid outflows recorded</td>
+                    </tr>
+                  )}
                   <tr className="bg-rose-50/50 font-black border-t-2 border-rose-200">
                     <td colSpan={2} className="py-2 px-2 text-rose-900 uppercase text-[11px]">
-                      Total Monthly Expenses (EA+EB)
+                      Total Paid Outflows (EA+EB)
                     </td>
                     <td className="py-2 px-2 text-right font-mono text-rose-900 text-sm">
                       {formatINR(totalExpenses)}
@@ -243,6 +253,27 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                   </tr>
                 </tbody>
               </table>
+
+              {/* Accrued / Billed Unpaid Invoices */}
+              {billedExpenses.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-amber-200 bg-amber-50/60 p-3 rounded-xl">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center space-x-1">
+                      <span>📄</span>
+                      <span>Accrued / Billed Unpaid Liabilities</span>
+                    </span>
+                    <span className="font-mono font-bold text-amber-900 text-xs">{formatINR(totalBilledLiabilities)}</span>
+                  </div>
+                  <div className="space-y-1">
+                    {billedExpenses.map((be, i) => (
+                      <div key={i} className="flex justify-between text-[11px] text-amber-800">
+                        <span>• {be.description}</span>
+                        <span className="font-mono font-bold">{formatINR(be.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

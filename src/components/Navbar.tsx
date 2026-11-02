@@ -15,6 +15,8 @@ interface NavbarProps {
   setSelectedFlat: (flat: number) => void;
   flatsList: number[];
   onLogout?: () => void;
+  onOpenChangePassword?: () => void;
+  onOpenSecurity?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -29,7 +31,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   selectedFlat,
   setSelectedFlat,
   flatsList,
-  onLogout
+  onLogout,
+  onOpenChangePassword,
+  onOpenSecurity
 }) => {
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm no-print">
@@ -50,14 +54,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Role Status or Resident Static Badge */}
-          <div className="flex items-center space-x-3">
+          {/* Role Status or Resident Static Badge + Quick Security Action */}
+          <div className="flex items-center space-x-2">
             {currentRole === 'admin' ? (
-              <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
-                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-                <span className="text-xs font-black text-blue-900 tracking-wide">
-                  👑 Admin Panel
-                </span>
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl">
+                  <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                  <span className="text-xs font-black text-blue-900 tracking-wide">
+                    👑 Admin Panel
+                  </span>
+                </div>
+                {onOpenSecurity && (
+                  <button
+                    type="button"
+                    onClick={onOpenSecurity}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                    title="Change Admin Password, Watchman PIN & Reset Flat PINs"
+                  >
+                    <span>🛡️</span>
+                    <span className="hidden sm:inline">Security & Credentials</span>
+                  </button>
+                )}
               </div>
             ) : currentRole === 'watchman' ? (
               <div className="flex items-center space-x-1.5 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl">
@@ -67,12 +84,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               </div>
             ) : (
-              /* Resident Flat Label - Static, no dropdown */
-              <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-xs font-black text-emerald-900 tracking-wide">
-                  🏠 Flat {selectedFlat}
-                </span>
+              /* Resident Flat Label + Change Password */
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-xs font-black text-emerald-900 tracking-wide">
+                    🏠 Flat {selectedFlat}
+                  </span>
+                </div>
+                {onOpenChangePassword && (
+                  <button
+                    type="button"
+                    onClick={onOpenChangePassword}
+                    className="flex items-center space-x-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-purple-50 hover:text-purple-700 text-slate-700 text-xs font-bold border border-slate-200 transition-all shadow-2xs"
+                    title="Change your personal flat password"
+                  >
+                    <span>🔐</span>
+                    <span className="hidden sm:inline">Change Password</span>
+                  </button>
+                )}
               </div>
             )}
 

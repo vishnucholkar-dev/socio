@@ -55,6 +55,7 @@ export const App: React.FC = () => {
   const selectedFlat = session?.flatNumber || 101;
   const [activeTab, setActiveTab] = useState<string>(() => session?.role === 'admin' ? 'dashboard' : 'my-flat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isResidentPwdOpen, setIsResidentPwdOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // All cycle labels (including unopened successor periods) come from cycle metadata.
@@ -162,6 +163,8 @@ export const App: React.FC = () => {
           setSession(null);
           setIsLoginOpen(true);
         }}
+        onOpenChangePassword={() => setIsResidentPwdOpen(true)}
+        onOpenSecurity={() => setIsSettingsOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -186,6 +189,8 @@ export const App: React.FC = () => {
             allMaintenanceStatements={data.maintenance_statements}
             allWaterStatements={data.water_statements}
             setActiveTab={setActiveTab}
+            isPwdModalOpen={isResidentPwdOpen}
+            setIsPwdModalOpen={setIsResidentPwdOpen}
           />
         )}
 

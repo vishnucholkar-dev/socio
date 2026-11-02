@@ -11,6 +11,8 @@ interface ResidentDashboardProps {
   allMaintenanceStatements: MaintenanceStatement[];
   allWaterStatements: WaterStatement[];
   setActiveTab: (tab: string) => void;
+  isPwdModalOpen?: boolean;
+  setIsPwdModalOpen?: (open: boolean) => void;
 }
 
 export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
@@ -18,7 +20,9 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   selectedMonth,
   allMaintenanceStatements,
   allWaterStatements,
-  setActiveTab
+  setActiveTab,
+  isPwdModalOpen = false,
+  setIsPwdModalOpen
 }) => {
   const currentMaint = allMaintenanceStatements.find(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentWater = allWaterStatements.find(w => sameCalendarMonth(w.sheet_name, selectedMonth));
@@ -47,27 +51,62 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   const prevYearFlatMaint = prevYearMaint?.flats.find(f => f.flat === selectedFlat);
   const prevYearFlatWater = prevYearWater?.flats.find(f => f.flat === selectedFlat);
 
-  // Year to Date (YTD) analytics for currentYear
-  const thisYearStatements = allMaintenanceStatements.filter(m => {
-    const d = new Date(`${m.sheet_name} 1 UTC`);
-    return !isNaN(d.getTime()) && d.getUTCFullYear() === currentYear;
+  // Interactive Chart Year State (defaults to current year)
+  const [chartYear, setChartYear] = useState<number>(currentYear);
+
+  // Filter statements for chartYear
+  const yearMaintStatements = allMaintenanceStatements
+    .filter(m => {
+      const d = new Date(`${m.sheet_name} 1 UTC`);
+      return !isNaN(d.getTime()) && d.getUTCFullYear() === chartYear;
+    })
+    .sort((a, b) => new Date(`${a.sheet_name} 1 UTC`).getTime() - new Date(`${b.sheet_name} 1 UTC`).getTime());
+
+  // Aggregate monthly series for the selected chart year
+  const monthlySeries = yearMaintStatements.map(m => {
+    const fM = m.flats.find(item => item.flat === selectedFlat);
+    const w = allWaterStatements.find(item => sameCalendarMonth(item.sheet_name, m.sheet_name));
+    const fW = w?.flats.find(item => item.flat === selectedFlat);
+    const shortMonth = m.sheet_name.split(' ')[0].slice(0, 3);
+    return {
+      monthLabel: m.sheet_name,
+      shortMonth,
+      paid: fM?.paid || 0,
+      actual: fM?.actual || 0,
+      liters: fW?.liters || 0,
+      waterCharge: fW?.water_charge || 0
+    };
   });
 
-  const totalPaidThisYear = thisYearStatements.reduce((sum, m) => {
-    const f = m.flats.find(item => item.flat === selectedFlat);
-    return sum + (f?.paid || 0);
-  }, 0);
-
-  const monthsPassedThisYear = Math.max(1, thisYearStatements.length);
-  const monthlyAveragePaidThisYear = Math.round(totalPaidThisYear / monthsPassedThisYear);
+  const totalPaidThisYear = monthlySeries.reduce((sum, item) => sum + item.paid, 0);
+  const totalLitersThisYear = monthlySeries.reduce((sum, item) => sum + item.liters, 0);
+  const monthsCount = Math.max(1, monthlySeries.length);
+  const monthlyAveragePaid = Math.round(totalPaidThisYear / monthsCount);
+  const monthlyAverageLiters = Math.round(totalLitersThisYear / monthsCount);
 
   const isPaid = (flatMaint?.pending || 0) <= 1;
-  const isReadingPending = !flatWater || flatWater.closing_reading <= flatWater.opening_reading || currentWater?.readings_complete !== true;
 
-  // Password Change Modal State for Flat Owner
-  const [showPwdModal, setShowPwdModal] = useState(false);
+  // Individual reading check: If this flat's closing reading is recorded and > opening reading, reading is NOT pending!
+  const hasRecordedReading = Boolean(
+    flatWater &&
+    Number.isFinite(flatWater.closing_reading) &&
+    flatWater.closing_reading > flatWater.opening_reading
+  );
+  const isReadingPending = !hasRecordedReading;
+
+  // Internal password modal state (backed by props or internal)
+  const [internalPwdOpen, setInternalPwdOpen] = useState(false);
+  const showPwdModal = isPwdModalOpen || internalPwdOpen;
+  const setShowPwdModal = (val: boolean) => {
+    setInternalPwdOpen(val);
+    if (setIsPwdModalOpen) setIsPwdModalOpen(val);
+  };
   const [newPassword, setNewPassword] = useState('');
   const [pwdMsg, setPwdMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // SVG Chart Scaling
+  const maxPaid = Math.max(...monthlySeries.map(s => Math.max(s.paid, s.actual)), 3000);
+  const maxLiters = Math.max(...monthlySeries.map(s => s.liters), 20000);
 
   return (
     <div className="space-y-6">
@@ -84,10 +123,10 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Flat {selectedFlat} — Monthly Overview
+              Flat {selectedFlat} — Monthly Overview & Analytics
             </h1>
             <p className="text-xs sm:text-sm text-blue-200 mt-1 max-w-xl">
-              Rockcliff 'B' Block Residents Association • Personal maintenance breakdown, meter readings, and verified payment history.
+              Rockcliff 'B' Block Residents Association • Personal maintenance breakdown, consumption trends, and verified receipts.
             </p>
           </div>
 
@@ -98,7 +137,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
                 setPwdMsg(null);
                 setShowPwdModal(true);
               }}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
             >
               <span>🔐</span>
               <span>Change Password</span>
@@ -112,7 +151,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('water-meter')}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
             >
               <Droplet size={15} />
               <span>Society Water Table</span>
@@ -121,7 +160,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
         </div>
       </div>
 
-      {/* Selected Month Billing & Payment Status Card */}
+      {/* Selected Month All-in-One Executive Card (No Duplicate Numbers) */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-100 gap-4">
           <div>
@@ -131,11 +170,16 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             </h2>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {isReadingPending && (
+          <div className="flex items-center space-x-2.5">
+            {isReadingPending ? (
               <span className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center space-x-1">
                 <span>⏳</span>
                 <span>Meter Reading Pending</span>
+              </span>
+            ) : (
+              <span className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center space-x-1">
+                <span>✓</span>
+                <span>Reading Verified ({formatLiters(flatWater?.liters || 0)})</span>
               </span>
             )}
             <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider ${
@@ -148,6 +192,7 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
         </div>
 
+        {/* Warning only if reading is ACTUALLY unrecorded */}
         {isReadingPending && (
           <div className="mt-5 p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 flex items-start space-x-2.5">
             <span className="text-base shrink-0">⏳</span>
@@ -155,67 +200,79 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
               <p className="font-bold">Meter Reading Not Recorded Yet</p>
               <p className="text-amber-800 mt-0.5">
                 The closing meter reading for {selectedMonth} has not been recorded for your flat yet.
-                Your provisional bill currently displays the fixed base mandatory maintenance ({formatINR(flatWater?.mandatory_maintenance || 1400)}) and will automatically update once the watchman enters your reading.
+                Your provisional bill currently displays the fixed base mandatory maintenance ({formatINR(flatWater?.mandatory_maintenance || 1400)}) and will automatically update once your reading is entered.
               </p>
             </div>
           </div>
         )}
 
-        {/* 4 Metrics for Selected Month */}
+        {/* Consolidated Billing & Consumption Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
             <span className="text-xs text-slate-500 font-medium">Month Bill (Actual)</span>
             <p className="text-2xl font-black text-slate-900 mt-1 font-mono">{formatINR(flatMaint?.actual)}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Base + Water charges</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              ₹{(flatWater?.mandatory_maintenance || 1400).toLocaleString('en-IN')} base + {formatINR(flatWater?.water_charge || 0)} water
+            </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+          <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
             <span className="text-xs text-emerald-700 font-medium">Amount Paid</span>
             <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{formatINR(flatMaint?.paid)}</p>
-            <p className="text-[11px] text-emerald-600 mt-0.5">Channel: {flatMaint?.mode || 'Due'}</p>
+            <p className="text-[11px] text-emerald-600 mt-0.5">Payment Mode: {flatMaint?.mode || 'Due'}</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-100">
-            <span className="text-xs text-rose-700 font-medium">Pending Dues</span>
+          <div className={`p-4 rounded-2xl border ${((flatMaint?.pending || 0) > 1) ? 'bg-rose-50/60 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+            <span className="text-xs text-slate-500 font-medium">Balance Pending Due</span>
             <p className={`text-2xl font-black mt-1 font-mono ${(flatMaint?.pending || 0) > 1 ? 'text-rose-600' : 'text-slate-700'}`}>
               {formatINR(flatMaint?.pending)}
             </p>
-            <p className="text-[11px] text-rose-600 mt-0.5">Total due remaining</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {(flatMaint?.previous_pending || 0) > 0 ? `Includes +${formatINR(flatMaint?.previous_pending)} prior arrears` : 'No prior arrears'}
+            </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100">
+          <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
             <span className="text-xs text-blue-700 font-medium">Water Consumed</span>
             <p className="text-2xl font-black text-blue-900 mt-1 font-mono">{formatLiters(flatWater?.liters || 0)}</p>
-            <p className="text-[11px] text-blue-600 mt-0.5">Avg: {flatWater?.avg_per_day || 0} L/day</p>
+            <p className="text-[11px] text-blue-600 mt-0.5">
+              Reading: {flatWater?.opening_reading?.toLocaleString()} → {flatWater?.closing_reading?.toLocaleString()}
+            </p>
           </div>
         </div>
 
         {/* Itemized Assessment Breakdown */}
-        <div className="mt-6 pt-6 border-t border-slate-100">
-          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Itemized Bill Breakdown</h4>
+        <div className="mt-6 pt-5 border-t border-slate-100">
+          <h4 className="text-[11px] font-bold text-slate-900 uppercase tracking-wider mb-2.5">
+            Bill Composition Breakdown
+          </h4>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 rounded-xl border border-slate-200 bg-white">
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
               <span className="text-slate-500 block">1. Fixed Mandatory Maintenance</span>
-              <span className="text-sm font-bold font-mono text-slate-900">{formatINR(flatWater?.mandatory_maintenance || 1400)}</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">Security, cleaning, lift AMC</span>
+              <span className="text-base font-bold font-mono text-slate-900">{formatINR(flatWater?.mandatory_maintenance || 1400)}</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Security, staff salary, lift AMC, power</span>
             </div>
 
-            <div className="p-3 rounded-xl border border-slate-200 bg-white">
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
               <span className="text-slate-500 block">2. Metered Water Charge</span>
-              <span className="text-sm font-bold font-mono text-slate-900">{formatINR(flatWater?.water_charge || 0)}</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">{formatLiters(flatWater?.liters || 0)} @ ₹{flatWater?.water_charge ? formatINRExact(flatWater.water_charge / Math.max(1, flatWater.liters)) : '0.00'}/L</span>
+              <span className="text-base font-bold font-mono text-slate-900">{formatINR(flatWater?.water_charge || 0)}</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                {formatLiters(flatWater?.liters || 0)} @ ₹{flatWater?.water_charge && flatWater.liters > 0 ? (flatWater.water_charge / flatWater.liters).toFixed(4) : '0.00'}/L
+              </span>
             </div>
 
-            <div className="p-3 rounded-xl border border-slate-200 bg-white">
+            <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
               <span className="text-slate-500 block">3. Previous Pending Arrears</span>
-              <span className="text-sm font-bold font-mono text-slate-900">{formatINR(flatMaint?.previous_pending || 0)}</span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">Carried forward dues</span>
+              <span className={`text-base font-bold font-mono ${(flatMaint?.previous_pending || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                {formatINR(flatMaint?.previous_pending || 0)}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Carried forward from preceding closed cycle</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* MoM & YoY Comparative Analytics */}
+      {/* Direct MoM and YoY Comparative Analytics (Requested in prompt) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Month over Month (MoM) Card */}
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
@@ -232,11 +289,11 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           {prevFlatMaint ? (
             <div className="mt-4 space-y-3 text-xs">
               <div className="flex justify-between items-center py-1">
-                <span className="text-slate-600">Previous Month Assessment:</span>
+                <span className="text-slate-600">Previous Month Assessment ({prevMonthLabel}):</span>
                 <span className="font-mono font-bold text-slate-900">{formatINR(prevFlatMaint.actual)}</span>
               </div>
               <div className="flex justify-between items-center py-1">
-                <span className="text-slate-600">Current Month Assessment:</span>
+                <span className="text-slate-600">Current Month Assessment ({selectedMonth}):</span>
                 <span className="font-mono font-bold text-slate-900">{formatINR(flatMaint?.actual)}</span>
               </div>
               <div className="flex justify-between items-center py-2 border-t border-slate-100 font-bold">
@@ -316,43 +373,162 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
         </div>
       </div>
 
-      {/* YTD Annual Spending & Average Paid Metrics */}
+      {/* Comprehensive Annual Totals & Average Bar (Requested by user) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">This Year Total Paid</span>
+          <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{formatINR(totalPaidThisYear)}</p>
+          <span className="text-[11px] text-slate-400">Year {chartYear} Cumulative Collections</span>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Monthly Average Paid</span>
+          <p className="text-2xl font-black text-blue-700 mt-1 font-mono">{formatINR(monthlyAveragePaid)}</p>
+          <span className="text-[11px] text-slate-400">Average across {monthsCount} recorded months</span>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">Total Liters Water Used</span>
+          <p className="text-2xl font-black text-purple-900 mt-1 font-mono">{formatLiters(totalLitersThisYear)}</p>
+          <span className="text-[11px] text-slate-400">Year {chartYear} Cumulative Consumption</span>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider block">Monthly Average Used</span>
+          <p className="text-2xl font-black text-indigo-700 mt-1 font-mono">{formatLiters(monthlyAverageLiters)}</p>
+          <span className="text-[11px] text-slate-400">Per-month average usage</span>
+        </div>
+      </div>
+
+      {/* Interactive Monthly & Yearly Visual SVG Chart */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
           <div>
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Annual Spending Performance</span>
-            <h3 className="text-base font-black text-slate-900">Year {currentYear} Cumulative Assessment & Payments</h3>
-          </div>
-          <span className="text-xs font-mono font-bold bg-slate-100 text-slate-700 px-3 py-1 rounded-full">
-            {monthsPassedThisYear} Months Recorded in {currentYear}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200">
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-              Total Maintenance Paid in {currentYear}
-            </span>
-            <p className="text-3xl font-black text-emerald-700 mt-2 font-mono">
-              {formatINR(totalPaidThisYear)}
-            </p>
-            <p className="text-xs text-emerald-600 mt-1">
-              Sum of all cleared collections for Flat {selectedFlat} across {currentYear}
+            <h3 className="text-base font-black text-slate-900 flex items-center space-x-2">
+              <span>📊</span>
+              <span>Flat {selectedFlat} Monthly Spending & Water Consumption Trend</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Historical visual curve of maintenance paid (bars) vs water liters consumed (line)
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200">
-            <span className="text-xs font-bold text-blue-800 uppercase tracking-wider block">
-              Monthly Average Paid in {currentYear}
-            </span>
-            <p className="text-3xl font-black text-blue-700 mt-2 font-mono">
-              {formatINR(monthlyAveragePaidThisYear)} <span className="text-sm font-semibold text-blue-500">/ month</span>
-            </p>
-            <p className="text-xs text-blue-600 mt-1">
-              {formatINR(totalPaidThisYear)} ÷ {monthsPassedThisYear} months recorded
-            </p>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-bold text-slate-500">Select Year:</span>
+            <select
+              value={chartYear}
+              onChange={(e) => setChartYear(Number(e.target.value))}
+              className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold bg-slate-50 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value={2026}>2026</option>
+              <option value={2025}>2025</option>
+              <option value={2024}>2024</option>
+            </select>
           </div>
         </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-4 text-xs font-bold my-4">
+          <div className="flex items-center space-x-1.5">
+            <span className="w-3.5 h-3.5 rounded-sm bg-blue-600 inline-block"></span>
+            <span className="text-slate-700">Amount Paid (₹)</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-3.5 h-1 bg-purple-600 inline-block"></span>
+            <span className="text-slate-700">Liters Used (L)</span>
+          </div>
+          <div className="flex items-center space-x-1.5">
+            <span className="w-3.5 h-0.5 border-t border-dashed border-slate-400 inline-block"></span>
+            <span className="text-slate-500">Avg Monthly Liters ({formatLiters(monthlyAverageLiters)})</span>
+          </div>
+        </div>
+
+        {/* Pure Responsive SVG Chart (Zero External Dependencies) */}
+        {monthlySeries.length > 0 ? (
+          <div className="overflow-x-auto pt-2">
+            <svg viewBox="0 0 720 220" className="w-full h-56 select-none">
+              <defs>
+                <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#1d4ed8" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines */}
+              <line x1="40" y1="30" x2="700" y2="30" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="40" y1="80" x2="700" y2="80" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="40" y1="130" x2="700" y2="130" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="40" y1="180" x2="700" y2="180" stroke="#cbd5e1" strokeWidth="1.5" />
+
+              {/* Average Liters Reference Line */}
+              {(() => {
+                const avgY = 180 - (monthlyAverageLiters / maxLiters) * 140;
+                return (
+                  <line x1="40" y1={avgY} x2="700" y2={avgY} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth="1.5" />
+                );
+              })()}
+
+              {/* Bars and Line Points */}
+              {monthlySeries.map((item, idx) => {
+                const totalItems = monthlySeries.length;
+                const slotWidth = (700 - 50) / Math.max(1, totalItems);
+                const x = 50 + idx * slotWidth + slotWidth / 2;
+                const barHeight = Math.max(4, (item.paid / maxPaid) * 140);
+                const barY = 180 - barHeight;
+                const lineY = 180 - (item.liters / maxLiters) * 140;
+
+                return (
+                  <g key={item.monthLabel} className="group">
+                    {/* Bar for Paid */}
+                    <rect
+                      x={x - 14}
+                      y={barY}
+                      width="28"
+                      height={barHeight}
+                      rx="5"
+                      fill="url(#barGrad)"
+                      className="opacity-90 hover:opacity-100 transition-opacity"
+                    />
+
+                    {/* Month Label */}
+                    <text x={x} y="200" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#64748b">
+                      {item.shortMonth}
+                    </text>
+
+                    {/* Value above bar */}
+                    <text x={x} y={barY - 5} textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e3a8a">
+                      ₹{Math.round(item.paid)}
+                    </text>
+
+                    {/* Water Liters Point */}
+                    <circle cx={x} cy={lineY} r="4.5" fill="#7e22ce" stroke="#fff" strokeWidth="2" />
+                    <text x={x} y={lineY - 7} textAnchor="middle" fontSize="8.5" fontWeight="bold" fill="#7e22ce">
+                      {Math.round(item.liters / 1000)}kL
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Water Consumption Polyline */}
+              {(() => {
+                const totalItems = monthlySeries.length;
+                const slotWidth = (700 - 50) / Math.max(1, totalItems);
+                const points = monthlySeries
+                  .map((item, idx) => {
+                    const x = 50 + idx * slotWidth + slotWidth / 2;
+                    const lineY = 180 - (item.liters / maxLiters) * 140;
+                    return `${x},${lineY}`;
+                  })
+                  .join(' ');
+                return <polyline fill="none" stroke="#7e22ce" strokeWidth="2.5" points={points} />;
+              })()}
+            </svg>
+          </div>
+        ) : (
+          <div className="py-12 text-center text-slate-400 text-xs">
+            No historical records found for year {chartYear}.
+          </div>
+        )}
       </div>
 
       {/* Flat Owner Change Password Modal */}
