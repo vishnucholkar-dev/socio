@@ -17,6 +17,7 @@ interface ExpensesModuleProps {
   onAddTransfer: (month: string, transfer: Omit<BalanceTransfer, 'id'>) => boolean;
   onUpdateTransfer: (month: string, id: string, transfer: Omit<BalanceTransfer, 'id'>) => boolean;
   onDeleteTransfer: (month: string, id: string) => boolean;
+  onAdjustBalance?: (month: string, channel: 'Cash' | 'Bank', adjustment: { type: 'delta' | 'exact'; amount: number; reason?: string }) => boolean;
   cycleStatus?: CycleStatus;
   openCycles?: string[];
   onOpenCycle?: (month: string) => void;
@@ -79,6 +80,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   onAddTransfer,
   onUpdateTransfer,
   onDeleteTransfer,
+  onAdjustBalance,
   cycleStatus = 'legacy-closed',
   openCycles,
   onOpenCycle,
@@ -112,6 +114,14 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const [transferFrom, setTransferFrom] = useState<'Cash' | 'Bank'>('Cash');
   const [editingInflowId, setEditingInflowId] = useState<string | null>(null);
   const [editingTransferId, setEditingTransferId] = useState<string | null>(null);
+
+  // Balance Adjustment Modal State
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustChannel, setAdjustChannel] = useState<'Cash' | 'Bank'>('Bank');
+  const [adjustType, setAdjustType] = useState<'exact' | 'delta'>('exact');
+  const [adjustAmount, setAdjustAmount] = useState<string>('');
+  const [adjustReason, setAdjustReason] = useState<string>('');
+  const [adjustError, setAdjustError] = useState<string | null>(null);
 
   if (!currentStatement) {
     return (
@@ -315,26 +325,64 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
       {/* Liquidity & Balance Overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {/* Cash in Hand */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative group">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase">Cash in Hand (IA-EA)</span>
-            <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-              <Wallet size={18} />
-            </span>
+            <div className="flex items-center space-x-1.5">
+              {canEdit && onAdjustBalance && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdjustChannel('Cash');
+                    setAdjustType('exact');
+                    setAdjustAmount(String(currentStatement.cash_balance));
+                    setAdjustReason('');
+                    setAdjustError(null);
+                    setShowAdjustModal(true);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200 transition-all shadow-2xs"
+                  title="Directly adjust cash balance (positive or negative)"
+                >
+                  ⚡ Adjust
+                </button>
+              )}
+              <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Wallet size={18} />
+              </span>
+            </div>
           </div>
-          <p className="text-2xl font-black text-emerald-600 mt-2">
+          <p className={`text-2xl font-black mt-2 ${currentStatement.cash_balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             {formatINR(currentStatement.cash_balance)}
           </p>
           <p className="text-xs text-slate-400 mt-1">Available gate/petty cash</p>
         </div>
 
         {/* Bank Balance */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative group">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 uppercase">Bank Balance (IB-EB)</span>
-            <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-              <CreditCard size={18} />
-            </span>
+            <div className="flex items-center space-x-1.5">
+              {canEdit && onAdjustBalance && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdjustChannel('Bank');
+                    setAdjustType('exact');
+                    setAdjustAmount(String(currentStatement.bank_balance));
+                    setAdjustReason('');
+                    setAdjustError(null);
+                    setShowAdjustModal(true);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] font-bold border border-blue-200 transition-all shadow-2xs"
+                  title="Directly adjust bank balance (positive or negative)"
+                >
+                  ⚡ Adjust
+                </button>
+              )}
+              <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                <CreditCard size={18} />
+              </span>
+            </div>
           </div>
           <p className="text-2xl font-black text-blue-600 mt-2">
             {formatINR(currentStatement.bank_balance)}
@@ -694,6 +742,196 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm"
                 >
                   {editingExpense ? 'Save Changes' : entryKind === 'inflow' ? 'Save Inflow' : entryKind === 'transfer' ? 'Save Transfer' : 'Save Expense'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Balance Adjustment Modal (Direct Positive / Negative Calibration) */}
+      {showAdjustModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 rounded-xl bg-purple-100 text-purple-700 font-bold text-sm">⚡</span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Adjust {adjustChannel} Balance</h3>
+                  <p className="text-[11px] text-slate-500">Cycle: {selectedMonth} (Open)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdjustModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setAdjustError(null);
+                const numVal = parseFloat(adjustAmount);
+                if (Number.isNaN(numVal)) {
+                  setAdjustError('Please enter a valid numeric amount (positive or negative).');
+                  return;
+                }
+                if (onAdjustBalance) {
+                  const success = onAdjustBalance(selectedMonth, adjustChannel, {
+                    type: adjustType,
+                    amount: numVal,
+                    reason: adjustReason
+                  });
+                  if (success) {
+                    setShowAdjustModal(false);
+                  }
+                }
+              }}
+              className="mt-4 space-y-4"
+            >
+              {/* Channel Selector */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Account Channel
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustChannel('Bank');
+                      setAdjustAmount(String(currentStatement.bank_balance));
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      adjustChannel === 'Bank' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    Bank Balance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustChannel('Cash');
+                      setAdjustAmount(String(currentStatement.cash_balance));
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      adjustChannel === 'Cash' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    Cash in Hand
+                  </button>
+                </div>
+              </div>
+
+              {/* Adjustment Mode */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Adjustment Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustType('exact')}
+                    className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      adjustType === 'exact' ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    Set Exact Balance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustType('delta');
+                      setAdjustAmount('');
+                    }}
+                    className={`py-1.5 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      adjustType === 'delta' ? 'bg-purple-100 text-purple-900 border-purple-300' : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    Add / Deduct (+/-)
+                  </button>
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  {adjustType === 'exact' ? `New Target ${adjustChannel} Balance (₹)` : `Delta Amount to Add or Subtract (₹)`}
+                </label>
+                <input
+                  type="text"
+                  value={adjustAmount}
+                  onChange={(e) => setAdjustAmount(e.target.value)}
+                  placeholder={adjustType === 'exact' ? 'e.g. 78156.04 or -156.04' : 'e.g. +500 or -250'}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-base font-black font-mono bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Positive or negative numbers are fully supported.
+                </span>
+              </div>
+
+              {/* Reason / Audit Note */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Audit Reason / Description (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="e.g. Passbook calibration, opening balance correction"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-slate-50 focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              {/* Live Preview Box */}
+              {(() => {
+                const num = parseFloat(adjustAmount) || 0;
+                const currentChannelBal = adjustChannel === 'Cash' ? currentStatement.cash_balance : currentStatement.bank_balance;
+                const otherChannelBal = adjustChannel === 'Cash' ? currentStatement.bank_balance : currentStatement.cash_balance;
+                const targetChannelBal = adjustType === 'exact' ? num : currentChannelBal + num;
+                const targetTotalLiquid = targetChannelBal + otherChannelBal;
+
+                return (
+                  <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-xs space-y-1">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Current {adjustChannel}:</span>
+                      <span className="font-mono font-bold">{formatINR(currentChannelBal)}</span>
+                    </div>
+                    <div className="flex justify-between text-purple-900 font-bold">
+                      <span>New {adjustChannel}:</span>
+                      <span className="font-mono">{formatINR(targetChannelBal)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-800 font-black pt-1 border-t border-purple-200">
+                      <span>New Total Liquid Funds:</span>
+                      <span className="font-mono text-purple-700">{formatINR(targetTotalLiquid)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {adjustError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 font-semibold">
+                  {adjustError}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                >
+                  Apply Balance Adjustment
                 </button>
               </div>
             </form>

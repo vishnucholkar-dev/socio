@@ -453,6 +453,61 @@ runTest('October 2026 initializes with Bank Balance = 78,156.04 and Total Liquid
   assert.strictEqual(octMaint.cash_balance, -156.04, 'October cash in hand balance must be -156.04');
 });
 
+// 16. POSITIVE AND NEGATIVE BALANCE ADJUSTMENTS IN OPEN CYCLE
+runTest('Admin can directly adjust Bank and Cash balances with positive and negative amounts in open cycles', () => {
+  const dataBefore = storage.getApartmentData();
+  const octMaintBefore = dataBefore.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const initialBank = octMaintBefore.bank_balance; // 78156.04
+  const initialCash = octMaintBefore.cash_balance; // -156.04
+
+  // 1. Add delta to Bank Balance (+500)
+  storage.adjustAccountBalance('October 2026', 'Bank', {
+    type: 'delta',
+    amount: 500,
+    reason: 'Bank interest added'
+  });
+
+  let octMaint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(octMaint.bank_balance, Math.round((initialBank + 500) * 100) / 100);
+  assert.strictEqual(octMaint.total_balance, Math.round((octMaint.cash_balance + octMaint.bank_balance) * 100) / 100);
+
+  // 2. Subtract delta from Cash in Hand (-1000)
+  storage.adjustAccountBalance('October 2026', 'Cash', {
+    type: 'delta',
+    amount: -1000,
+    reason: 'Petty cash adjustment'
+  });
+
+  octMaint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(octMaint.cash_balance, Math.round((initialCash - 1000) * 100) / 100);
+  assert.strictEqual(octMaint.total_balance, Math.round((octMaint.cash_balance + octMaint.bank_balance) * 100) / 100);
+
+  // 3. Set exact balance (e.g. set Bank to 80,000 and Cash to 2,000)
+  storage.adjustAccountBalance('October 2026', 'Bank', {
+    type: 'exact',
+    amount: 80000,
+    reason: 'Exact bank calibration'
+  });
+  storage.adjustAccountBalance('October 2026', 'Cash', {
+    type: 'exact',
+    amount: 2000,
+    reason: 'Exact cash calibration'
+  });
+
+  octMaint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(octMaint.bank_balance, 80000);
+  assert.strictEqual(octMaint.cash_balance, 2000);
+  assert.strictEqual(octMaint.total_balance, 82000);
+
+  // 4. Closed cycles block adjustments
+  assert.throws(() => {
+    storage.adjustAccountBalance('September Water 2026', 'Bank', {
+      type: 'exact',
+      amount: 50000
+    });
+  }, /locked legacy cycle/);
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

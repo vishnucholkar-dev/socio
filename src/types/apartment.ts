@@ -97,7 +97,7 @@ export interface CycleState {
 export interface CycleAuditEvent {
   id: string;
   month: string;
-  action: 'opened' | 'closed' | 'reopened' | 'legacy.initialized' | 'expense.created' | 'expense.updated' | 'expense.deleted' | 'inflow.created' | 'inflow.updated' | 'inflow.deleted' | 'transfer.created' | 'transfer.updated' | 'transfer.deleted' | 'payment.updated' | 'water.updated' | 'contact.saved' | 'contact.deleted' | 'config.created';
+  action: 'opened' | 'closed' | 'reopened' | 'legacy.initialized' | 'expense.created' | 'expense.updated' | 'expense.deleted' | 'inflow.created' | 'inflow.updated' | 'inflow.deleted' | 'transfer.created' | 'transfer.updated' | 'transfer.deleted' | 'payment.updated' | 'water.updated' | 'contact.saved' | 'contact.deleted' | 'config.created' | 'balance.adjusted';
   occurred_at: string;
   actor: string;
   reason?: string;

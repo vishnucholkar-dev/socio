@@ -13,6 +13,7 @@ import {
   addBalanceTransfer,
   updateBalanceTransfer,
   deleteBalanceTransfer,
+  adjustAccountBalance,
   saveWaterStatement,
   saveSingleFlatWaterReading,
   closeCycle,
@@ -110,6 +111,8 @@ export const App: React.FC = () => {
   const handleAddTransfer = (month: string, transfer: Omit<BalanceTransfer, 'id'>) => runAction(() => addBalanceTransfer(month, transfer));
   const handleUpdateTransfer = (month: string, id: string, transfer: Omit<BalanceTransfer, 'id'>) => runAction(() => updateBalanceTransfer(month, id, transfer));
   const handleDeleteTransfer = (month: string, id: string) => runAction(() => deleteBalanceTransfer(month, id));
+  const handleAdjustBalance = (month: string, channel: 'Cash' | 'Bank', adjustment: { type: 'delta' | 'exact'; amount: number; reason?: string }) =>
+    runAction(() => adjustAccountBalance(month, channel, adjustment));
 
   const handleSaveWaterStatement = (statement: WaterStatement) => runAction(() => saveWaterStatement(statement));
   const handleSaveSingleReading = (monthSheet: string, flatNumber: number, closingReading: number) =>
@@ -231,6 +234,7 @@ export const App: React.FC = () => {
             onAddTransfer={handleAddTransfer}
             onUpdateTransfer={handleUpdateTransfer}
             onDeleteTransfer={handleDeleteTransfer}
+            onAdjustBalance={handleAdjustBalance}
             cycleStatus={selectedCycleStatus}
             openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
             onOpenCycle={handleOpenCycle}

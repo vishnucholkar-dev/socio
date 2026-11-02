@@ -790,6 +790,66 @@ export function deleteBalanceTransfer(month: string, id: string): ApartmentData 
   return data;
 }
 
+export function adjustAccountBalance(
+  month: string,
+  channel: 'Cash' | 'Bank',
+  adjustment: {
+    type: 'delta' | 'exact';
+    amount: number;
+    reason?: string;
+  }
+): ApartmentData {
+  const data = getApartmentData();
+  assertCycleOpen(data, month);
+
+  if (!Number.isFinite(adjustment.amount)) {
+    throw new Error('Adjustment amount must be a finite number.');
+  }
+
+  const m = getMaintenance(data, month);
+  const currentBalance = channel === 'Cash' ? (m.cash_balance || 0) : (m.bank_balance || 0);
+  const targetBalance = adjustment.type === 'exact'
+    ? money(adjustment.amount)
+    : money(currentBalance + adjustment.amount);
+  const delta = money(targetBalance - currentBalance);
+
+  const before = {
+    channel,
+    cash_balance: m.cash_balance,
+    bank_balance: m.bank_balance,
+    total_balance: m.total_balance,
+    cash_opening: m.cash_opening,
+    bank_opening: m.bank_opening
+  };
+
+  if (channel === 'Cash') {
+    m.cash_opening = money((m.cash_opening || 0) + delta);
+    m.cash_balance = targetBalance;
+  } else {
+    m.bank_opening = money((m.bank_opening || 0) + delta);
+    m.bank_balance = targetBalance;
+  }
+  m.total_balance = money((m.cash_balance || 0) + (m.bank_balance || 0));
+
+  audit(data, {
+    month,
+    action: 'balance.adjusted',
+    reason: adjustment.reason?.trim() || `Manual ${channel} balance adjustment (${delta >= 0 ? '+' : ''}${delta.toFixed(2)})`,
+    before: before as unknown as Record<string, unknown>,
+    after: {
+      channel,
+      delta,
+      new_balance: targetBalance,
+      total_balance: m.total_balance,
+      cash_balance: m.cash_balance,
+      bank_balance: m.bank_balance
+    }
+  });
+
+  persist(data);
+  return data;
+}
+
 export function saveSingleFlatWaterReading(
   monthSheet: string,
   flatNumber: number,
