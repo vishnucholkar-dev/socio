@@ -151,6 +151,53 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
       changed = true;
     }
   }
+
+  // Ensure Flat 207 has September 2026 recorded as Due and carried into October 2026 as previous pending arrears
+  const sepMaint = data.maintenance_statements.find(s => sameCalendarMonth(s.sheet_name, 'September Water 2026') || sameCalendarMonth(s.sheet_name, 'September 2026'));
+  const sepWater = data.water_statements.find(s => sameCalendarMonth(s.sheet_name, 'September Water 2026') || sameCalendarMonth(s.sheet_name, 'September 2026'));
+  if (sepMaint) {
+    const f207Sep = sepMaint.flats.find(f => f.flat === 207);
+    if (f207Sep && (f207Sep.paid > 0 || f207Sep.status !== 'Due')) {
+      f207Sep.paid = 0.0;
+      f207Sep.pending = f207Sep.actual;
+      f207Sep.status = 'Due';
+      f207Sep.mode = 'Due';
+      if (!sepMaint.dues_list.some(d => d.item.includes('207'))) {
+        sepMaint.dues_list.push({ item: 'Flat 207', amount: f207Sep.pending });
+      }
+      changed = true;
+    }
+  }
+  if (sepWater) {
+    const f207SepW = sepWater.flats.find(f => f.flat === 207);
+    if (f207SepW && f207SepW.pending_amount !== f207SepW.actual_amount) {
+      f207SepW.pending_amount = f207SepW.actual_amount;
+      f207SepW.total_payable = f207SepW.actual_amount;
+      changed = true;
+    }
+  }
+
+  const octMaint = data.maintenance_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
+  const octWater = data.water_statements.find(s => sameCalendarMonth(s.sheet_name, 'October 2026'));
+  if (octMaint) {
+    const f207Oct = octMaint.flats.find(f => f.flat === 207);
+    if (f207Oct && f207Oct.previous_pending !== 2095.8) {
+      f207Oct.previous_pending = 2095.8;
+      f207Oct.total_payable = money(f207Oct.actual + f207Oct.previous_pending);
+      f207Oct.pending = money(Math.max(0, f207Oct.total_payable - f207Oct.paid));
+      f207Oct.status = f207Oct.pending <= 1 ? 'Paid' : (f207Oct.paid > 0 ? 'Partial' : 'Due');
+      changed = true;
+    }
+  }
+  if (octWater) {
+    const f207OctW = octWater.flats.find(f => f.flat === 207);
+    if (f207OctW && f207OctW.pending_amount !== 2095.8) {
+      f207OctW.pending_amount = 2095.8;
+      f207OctW.total_payable = money(f207OctW.actual_amount + f207OctW.pending_amount);
+      changed = true;
+    }
+  }
+
   assertUniqueStatementMonths(data.maintenance_statements, 'maintenance');
   assertUniqueStatementMonths(data.water_statements, 'water');
   return { data, changed };

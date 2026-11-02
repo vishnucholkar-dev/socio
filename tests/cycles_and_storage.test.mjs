@@ -404,6 +404,35 @@ runTest('March 2026 maintains verified society benchmark numbers (Flat 405: 1400
   assert.strictEqual(f405Maint.pending, 0.0, 'Flat 405 pending is 0');
 });
 
+// 14. FLAT 207 SEPTEMBER DUE AND OCTOBER ARREARS CASCADE
+runTest('Flat 207 has September 2026 recorded as Due and carries into October 2026 as pending arrears', () => {
+  const data = storage.getApartmentData();
+  const sepMaint = data.maintenance_statements.find(s => s.sheet_name.includes('September') && s.sheet_name.includes('2026'));
+  const octMaint = data.maintenance_statements.find(s => s.sheet_name.includes('October') && s.sheet_name.includes('2026'));
+  const octWater = data.water_statements.find(s => s.sheet_name.includes('October') && s.sheet_name.includes('2026'));
+
+  assert(sepMaint && octMaint && octWater, 'September and October statements exist');
+
+  const f207Sep = sepMaint.flats.find(f => f.flat === 207);
+  assert(f207Sep, 'Flat 207 exists in September');
+  assert.strictEqual(f207Sep.actual, 2095.8, 'September actual bill is 2095.8 (~2096)');
+  assert.strictEqual(f207Sep.paid, 0.0, 'September paid is 0');
+  assert.strictEqual(f207Sep.pending, 2095.8, 'September pending is 2095.8 (~2096)');
+  assert.strictEqual(f207Sep.status, 'Due', 'September status is Due');
+
+  const f207Oct = octMaint.flats.find(f => f.flat === 207);
+  assert(f207Oct, 'Flat 207 exists in October');
+  assert.strictEqual(f207Oct.actual, 2235.22, 'October month assessment is 2235.22 (~2235)');
+  assert.strictEqual(f207Oct.previous_pending, 2095.8, 'October carries previous pending arrears 2095.8 (~2096)');
+  assert.strictEqual(f207Oct.total_payable, 4331.02, 'Total payable is 2235.22 + 2095.8 = 4331.02 (~4331)');
+  assert.strictEqual(f207Oct.pending, 4331.02, 'Total pending in October is 4331.02');
+
+  const f207OctW = octWater.flats.find(f => f.flat === 207);
+  assert(f207OctW, 'Flat 207 exists in October Water');
+  assert.strictEqual(f207OctW.pending_amount, 2095.8, 'October water pending_amount carries 2095.8');
+  assert.strictEqual(f207OctW.total_payable, 4331.02, 'October water total_payable is 4331.02');
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);
