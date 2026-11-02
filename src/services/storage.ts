@@ -218,6 +218,17 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     }
   }
 
+  // Self-heal corrupted opening balances (e.g. negative opening bank or 1,50,179 cash opening from old delta calculation bug)
+  for (const m of data.maintenance_statements) {
+    if (m.bank_opening < 0 || Math.round(m.cash_opening) === 150179 || m.cash_opening === 150178.78) {
+      m.cash_opening = m.cash_balance;
+      m.bank_opening = m.bank_balance;
+      m.cash_total_in = 0;
+      m.bank_total_in = 0;
+      changed = true;
+    }
+  }
+
   // Two-way synchronization: Only ensure historical locked statements (prior to November 2026) have corresponding expenses
   // NEVER run backfill on open or active cycles, so user deletions in open cycles are permanent!
   for (const m of data.maintenance_statements) {
@@ -844,18 +855,20 @@ export function adjustAccountBalance(
 
   if (channel === 'Cash') {
     if (adjustment.type === 'exact') {
-      const netTransactions = (m.cash_total_in || 0) - (m.cash_total_out || 0);
       m.cash_balance = targetBalance;
-      m.cash_opening = money(targetBalance - netTransactions);
+      m.cash_opening = targetBalance;
+      m.cash_total_in = 0;
+      m.cash_total_out = 0;
     } else {
       m.cash_opening = money((m.cash_opening || 0) + delta);
       m.cash_balance = targetBalance;
     }
   } else {
     if (adjustment.type === 'exact') {
-      const netTransactions = (m.bank_total_in || 0) - (m.bank_total_out || 0);
       m.bank_balance = targetBalance;
-      m.bank_opening = money(targetBalance - netTransactions);
+      m.bank_opening = targetBalance;
+      m.bank_total_in = 0;
+      m.bank_total_out = 0;
     } else {
       m.bank_opening = money((m.bank_opening || 0) + delta);
       m.bank_balance = targetBalance;
