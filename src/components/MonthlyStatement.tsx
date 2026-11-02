@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
 import { formatINR, formatLiters } from '../services/calculations';
 import { Printer, Calendar, Wallet, CreditCard, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
+import { MonthlyStatementPdfExport } from './MonthlyStatementPdfExport';
 
 interface MonthlyStatementProps {
   selectedMonth: string;
@@ -17,6 +18,8 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   allWaterStatements,
   onSelectMonth
 }) => {
+  const [showPdfExport, setShowPdfExport] = useState(false);
+  const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid'>('all');
   const maintenanceMatches = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const waterMatches = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
   const currentMaint = maintenanceMatches.length === 1 ? maintenanceMatches[0] : undefined;
@@ -71,11 +74,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           </select>
 
           <button
-            onClick={() => window.print()}
-            className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+            type="button"
+            onClick={() => setShowPdfExport(true)}
+            className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all active:scale-95"
           >
-            <Printer size={15} />
-            <span>Print Report</span>
+            <span>📄</span>
+            <span>PDF Export</span>
           </button>
         </div>
       </div>
@@ -243,23 +247,120 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           </div>
         </div>
 
-        {/* Delinquent Flats / Outstanding Dues */}
-        {currentMaint.dues_list && currentMaint.dues_list.length > 0 && (
-          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200">
-            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
-              <AlertCircle size={15} className="text-amber-600" />
-              <span>Outstanding Dues Carried Forward</span>
-            </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {currentMaint.dues_list.map((d, idx) => (
-                <div key={idx} className="bg-white p-2.5 rounded-xl border border-amber-200 text-xs flex justify-between">
-                  <span className="font-semibold text-slate-800">{d.item}</span>
-                  <span className="font-bold text-rose-600 font-mono">{formatINR(d.amount)}</span>
-                </div>
-              ))}
+        {/* Redesigned Monthly Assessment & 32 Flats Collection Status */}
+        <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200">
+            <div>
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center space-x-1.5">
+                <span>📋</span>
+                <span>Monthly Assessment & Flat Collection Status</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Summary of 32 flats maintenance assessments, amount collected, and pending dues for this billing cycle.
+              </p>
+            </div>
+
+            {/* Filter buttons */}
+            <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold no-print">
+              <button
+                type="button"
+                onClick={() => setDuesFilter('all')}
+                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                All (32)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuesFilter('due')}
+                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'due' ? 'bg-rose-600 text-white' : 'text-rose-600 hover:bg-rose-50'}`}
+              >
+                Due Only ({currentMaint.flats.filter(f => f.pending > 1).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDuesFilter('paid')}
+                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'paid' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
+              >
+                Paid Only ({currentMaint.flats.filter(f => f.pending <= 1).length})
+              </button>
             </div>
           </div>
-        )}
+
+          {/* Collection Metrics Summary Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Billed</span>
+              <p className="text-base font-black text-slate-900 font-mono mt-0.5">
+                {formatINR(currentMaint.flats.reduce((sum, f) => sum + (f.actual || 0), 0))}
+              </p>
+              <span className="text-[10px] text-slate-400">32 Flats Combined</span>
+            </div>
+
+            <div className="bg-white p-3 rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-2xs">
+              <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Collected Amount</span>
+              <p className="text-base font-black text-emerald-700 font-mono mt-0.5">
+                {formatINR(totalFlatPaid)}
+              </p>
+              <span className="text-[10px] text-emerald-600 font-bold">
+                {currentMaint.flats.filter(f => f.pending <= 1).length} Flats Settled
+              </span>
+            </div>
+
+            <div className={`p-3 rounded-2xl border shadow-2xs ${totalFlatPending > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+              <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">Pending Dues</span>
+              <p className={`text-base font-black font-mono mt-0.5 ${totalFlatPending > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                {formatINR(totalFlatPending)}
+              </p>
+              <span className="text-[10px] text-rose-600 font-bold">
+                {currentMaint.flats.filter(f => f.pending > 1).length} Flats Unpaid
+              </span>
+            </div>
+
+            <div className="bg-white p-3 rounded-2xl border border-blue-200 shadow-2xs">
+              <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Collection Rate</span>
+              <p className="text-base font-black text-blue-700 font-mono mt-0.5">
+                {Math.round((totalFlatPaid / Math.max(1, totalFlatPaid + totalFlatPending)) * 100)}%
+              </p>
+              <span className="text-[10px] text-blue-600 font-bold">Recovery Status</span>
+            </div>
+          </div>
+
+          {/* 32 Flats Cards Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {[...currentMaint.flats]
+              .sort((a, b) => a.flat - b.flat)
+              .filter(f => duesFilter === 'all' ? true : duesFilter === 'due' ? f.pending > 1 : f.pending <= 1)
+              .map((f) => {
+                const isPaid = f.pending <= 1;
+                return (
+                  <div
+                    key={f.flat}
+                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                      isPaid
+                        ? 'bg-white border-emerald-200/80'
+                        : 'bg-white border-rose-300 shadow-2xs'
+                    }`}
+                  >
+                    <div>
+                      <span className="font-black text-slate-900 block">Flat {f.flat}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(f.actual)}</span>
+                    </div>
+
+                    <div className="text-right">
+                      <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        {isPaid ? formatINR(f.paid) : formatINR(f.pending)}
+                      </span>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                        isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {isPaid ? 'Paid' : 'Due'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
 
         {/* Association Signatures */}
         <div className="pt-8 border-t border-slate-200 grid grid-cols-3 text-center text-xs text-slate-500">
@@ -277,6 +378,14 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           </div>
         </div>
       </div>
+
+      {showPdfExport && (
+        <MonthlyStatementPdfExport
+          statement={currentMaint}
+          waterStatement={currentWater}
+          onClose={() => setShowPdfExport(false)}
+        />
+      )}
     </div>
   );
 };
