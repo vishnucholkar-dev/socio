@@ -31,6 +31,14 @@ export function canonicalMonthLabel(label: string): string | null {
   return date ? `${date.toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })} ${date.getUTCFullYear()}` : null;
 }
 
+export function getFirstOfMonth(monthLabel: string): string {
+  const d = monthDate(monthLabel);
+  if (!d) return new Date().toISOString().slice(0, 10);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+}
+
 export function sameCalendarMonth(left: string, right: string): boolean {
   const a = canonicalMonthLabel(left);
   return a !== null && a === canonicalMonthLabel(right);
@@ -205,6 +213,38 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
       if (f.pending_amount !== expectedPending) {
         f.pending_amount = expectedPending;
         f.total_payable = money(f.actual_amount + expectedPending);
+        changed = true;
+      }
+    }
+  }
+
+  // Two-way synchronization: Ensure all historical statements have corresponding tanker and electricity expenses in m.expenses
+  for (const m of data.maintenance_statements) {
+    const w = data.water_statements.find(ws => sameCalendarMonth(ws.sheet_name, m.sheet_name));
+    if (w) {
+      const slug = m.sheet_name.replace(/\s+/g, '-').toLowerCase();
+      const hasTankerExp = m.expenses.some(e => (e.category || '').toLowerCase().includes('tanker') || e.description.toLowerCase().includes('tanker'));
+      if (w.tanker_bill > 0 && !hasTankerExp) {
+        m.expenses.push({
+          id: `exp-tanker-${slug}`,
+          description: 'Water Tanker Supply (Monthly Tankers)',
+          amount: w.tanker_bill,
+          category: 'Water Tankers',
+          type: 'Bank',
+          date: getFirstOfMonth(m.sheet_name)
+        });
+        changed = true;
+      }
+      const hasElecExp = m.expenses.some(e => (e.category || '').toLowerCase().includes('electric') || (e.category || '').toLowerCase().includes('power') || e.description.toLowerCase().includes('electric'));
+      if (w.electricity_bill > 0 && !hasElecExp) {
+        m.expenses.push({
+          id: `exp-elec-${slug}`,
+          description: 'Electricity / Power Bill (Pumping & Common)',
+          amount: w.electricity_bill,
+          category: 'Electricity / Power',
+          type: 'Bank',
+          date: getFirstOfMonth(m.sheet_name)
+        });
         changed = true;
       }
     }
