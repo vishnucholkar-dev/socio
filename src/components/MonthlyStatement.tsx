@@ -143,12 +143,10 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                 </p>
                 <table className="w-full text-xs">
                   <tbody className="divide-y divide-slate-100">
-                    {currentMaint.cash_opening > 0 && (
-                      <tr>
-                        <td className="py-1.5 text-slate-600">Opening Cash Balance</td>
-                        <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.cash_opening)}</td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td className="py-1.5 text-slate-600">Opening Cash Balance</td>
+                      <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.cash_opening ?? 0)}</td>
+                    </tr>
                     {currentMaint.inflows.filter(i => (i.type || 'Cash') === 'Cash').map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">
@@ -176,12 +174,10 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                 </p>
                 <table className="w-full text-xs">
                   <tbody className="divide-y divide-slate-100">
-                    {currentMaint.bank_opening > 0 && (
-                      <tr>
-                        <td className="py-1.5 text-slate-600">Opening Bank Balance</td>
-                        <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.bank_opening)}</td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td className="py-1.5 text-slate-600">Opening Bank Balance</td>
+                      <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.bank_opening ?? 0)}</td>
+                    </tr>
                     {currentMaint.inflows.filter(i => i.type === 'Bank').map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">

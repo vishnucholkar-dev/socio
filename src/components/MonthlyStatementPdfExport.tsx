@@ -87,12 +87,10 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
     ` : '';
 
     const cashInflowRows = `
-      ${statement.cash_opening > 0 ? `
-        <tr>
-          <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">Opening Cash Balance</td>
-          <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: 600;">₹${statement.cash_opening.toLocaleString('en-IN')}</td>
-        </tr>
-      ` : ''}
+      <tr>
+        <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">Opening Cash Balance</td>
+        <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: 600;">₹${(statement.cash_opening ?? 0).toLocaleString('en-IN')}</td>
+      </tr>
       ${cashInflows.map(i => `
         <tr>
           <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">${i.description}</td>
@@ -106,12 +104,10 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
     `;
 
     const bankInflowRows = `
-      ${statement.bank_opening > 0 ? `
-        <tr>
-          <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">Opening Bank Balance</td>
-          <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: 600;">₹${statement.bank_opening.toLocaleString('en-IN')}</td>
-        </tr>
-      ` : ''}
+      <tr>
+        <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">Opening Bank Balance</td>
+        <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; text-align: right; font-family: monospace; font-weight: 600;">₹${(statement.bank_opening ?? 0).toLocaleString('en-IN')}</td>
+      </tr>
       ${bankInflows.map(i => `
         <tr>
           <td style="padding: 2.5px 6px; border: 1px solid #e2e8f0; color: #475569;">${i.description}</td>
@@ -578,12 +574,10 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                 </p>
                 <table className="w-full text-xs">
                   <tbody className="divide-y divide-slate-100">
-                    {statement.cash_opening > 0 && (
-                      <tr>
-                        <td className="py-1.5 text-slate-600">Opening Cash Balance</td>
-                        <td className="py-1.5 text-right font-mono font-semibold">{formatINR(statement.cash_opening)}</td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td className="py-1.5 text-slate-600">Opening Cash Balance</td>
+                      <td className="py-1.5 text-right font-mono font-semibold">{formatINR(statement.cash_opening ?? 0)}</td>
+                    </tr>
                     {cashInflows.map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">{item.description}</td>
@@ -607,12 +601,10 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                 </p>
                 <table className="w-full text-xs">
                   <tbody className="divide-y divide-slate-100">
-                    {statement.bank_opening > 0 && (
-                      <tr>
-                        <td className="py-1.5 text-slate-600">Opening Bank Balance</td>
-                        <td className="py-1.5 text-right font-mono font-semibold">{formatINR(statement.bank_opening)}</td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td className="py-1.5 text-slate-600">Opening Bank Balance</td>
+                      <td className="py-1.5 text-right font-mono font-semibold">{formatINR(statement.bank_opening ?? 0)}</td>
+                    </tr>
                     {bankInflows.map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">{item.description}</td>

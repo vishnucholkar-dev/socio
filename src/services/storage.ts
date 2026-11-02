@@ -843,11 +843,23 @@ export function adjustAccountBalance(
   };
 
   if (channel === 'Cash') {
-    m.cash_opening = money((m.cash_opening || 0) + delta);
-    m.cash_balance = targetBalance;
+    if (adjustment.type === 'exact') {
+      const netTransactions = (m.cash_total_in || 0) - (m.cash_total_out || 0);
+      m.cash_balance = targetBalance;
+      m.cash_opening = money(targetBalance - netTransactions);
+    } else {
+      m.cash_opening = money((m.cash_opening || 0) + delta);
+      m.cash_balance = targetBalance;
+    }
   } else {
-    m.bank_opening = money((m.bank_opening || 0) + delta);
-    m.bank_balance = targetBalance;
+    if (adjustment.type === 'exact') {
+      const netTransactions = (m.bank_total_in || 0) - (m.bank_total_out || 0);
+      m.bank_balance = targetBalance;
+      m.bank_opening = money(targetBalance - netTransactions);
+    } else {
+      m.bank_opening = money((m.bank_opening || 0) + delta);
+      m.bank_balance = targetBalance;
+    }
   }
   m.total_balance = money((m.cash_balance || 0) + (m.bank_balance || 0));
 
