@@ -218,8 +218,13 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     }
   }
 
-  // Two-way synchronization: Ensure all historical statements have corresponding tanker and electricity expenses in m.expenses
+  // Two-way synchronization: Only ensure historical locked statements (prior to November 2026) have corresponding expenses
+  // NEVER run backfill on open or active cycles, so user deletions in open cycles are permanent!
   for (const m of data.maintenance_statements) {
+    const cycleState = data.cycles?.[m.sheet_name];
+    if (cycleState && cycleState.status === 'open') {
+      continue;
+    }
     const w = data.water_statements.find(ws => sameCalendarMonth(ws.sheet_name, m.sheet_name));
     if (w) {
       const slug = m.sheet_name.replace(/\s+/g, '-').toLowerCase();
@@ -415,49 +420,45 @@ function syncExpensesToWater(data: ApartmentData, monthSheet: string): void {
   const tankerExpenses = m.expenses.filter(e => (e.category || '').toLowerCase().includes('tanker') || e.description.toLowerCase().includes('tanker'));
   const elecExpenses = m.expenses.filter(e => (e.category || '').toLowerCase().includes('electric') || (e.category || '').toLowerCase().includes('power') || e.description.toLowerCase().includes('electricity'));
 
-  let updated = false;
-  if (tankerExpenses.length > 0) {
-    w.tanker_bill = money(tankerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0));
-    updated = true;
-  }
-  if (elecExpenses.length > 0) {
-    w.electricity_bill = money(elecExpenses.reduce((sum, e) => sum + (e.amount || 0), 0));
-    updated = true;
-  }
+  // In an open cycle where user manages expenses, explicitly sync to the exact sum of expenses
+  // If user deleted all tanker expenses, w.tanker_bill becomes 0; if deleted all elec, w.electricity_bill becomes 0.
+  const newTankerBill = money(tankerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0));
+  const newElecBill = money(elecExpenses.reduce((sum, e) => sum + (e.amount || 0), 0));
 
-  // Recalculate water billing only when expenses exist or update
-  if (updated) {
-    const calculated = calculateWaterBilling({
-      tankerBill: w.tanker_bill,
-      electricityBill: w.electricity_bill,
-      commonUtilization: w.common_utilization,
-      mandatoryMaintenance: w.mandatory_maintenance,
-      days: w.days || 30,
-      flatReadings: w.flats.map(f => ({
-        flat: f.flat,
-        closingReading: f.closing_reading,
-        openingReading: f.opening_reading,
-        pendingAmount: f.pending_amount
-      }))
-    });
+  w.tanker_bill = newTankerBill;
+  w.electricity_bill = newElecBill;
 
-    w.net_electricity = calculated.netElectricity;
-    w.total_water_consumption_liters = calculated.totalConsumptionLiters;
-    w.avg_per_day_liters = calculated.avgPerDayLiters;
-    w.liter_per_charge = calculated.literPerCharge;
-    w.flats = calculated.flats;
+  // Recalculate water billing
+  const calculated = calculateWaterBilling({
+    tankerBill: w.tanker_bill,
+    electricityBill: w.electricity_bill,
+    commonUtilization: w.common_utilization,
+    mandatoryMaintenance: w.mandatory_maintenance,
+    days: w.days || 30,
+    flatReadings: w.flats.map(f => ({
+      flat: f.flat,
+      closingReading: f.closing_reading,
+      openingReading: f.opening_reading,
+      pendingAmount: f.pending_amount
+    }))
+  });
 
-    // Sync actual amounts to maintenance statement
-    for (const waterFlat of w.flats) {
-      const flat = m.flats.find(item => item.flat === waterFlat.flat);
-      if (!flat) continue;
-      flat.actual = money(waterFlat.actual_amount);
-      flat.total_payable = money(flat.actual + (flat.previous_pending || 0));
-      flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
-      flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
-    }
-    m.dues_list = m.flats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending }));
+  w.net_electricity = calculated.netElectricity;
+  w.total_water_consumption_liters = calculated.totalConsumptionLiters;
+  w.avg_per_day_liters = calculated.avgPerDayLiters;
+  w.liter_per_charge = calculated.literPerCharge;
+  w.flats = calculated.flats;
+
+  // Sync actual amounts to maintenance statement
+  for (const waterFlat of w.flats) {
+    const flat = m.flats.find(item => item.flat === waterFlat.flat);
+    if (!flat) continue;
+    flat.actual = money(waterFlat.actual_amount);
+    flat.total_payable = money(flat.actual + (flat.previous_pending || 0));
+    flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
+    flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
   }
+  m.dues_list = m.flats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending }));
 }
 
 function cascadeFlatArrears(data: ApartmentData, flatNumber: number, fromMonth: string): void {
