@@ -43,6 +43,16 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   const totalFlatPaid = currentMaint.flats.reduce((acc, f) => acc + (f.paid || 0), 0);
   const totalFlatPending = currentMaint.flats.reduce((acc, f) => acc + (f.pending || 0), 0);
   
+  // Dynamic breakdown of actual cash & bank collections and inflows
+  const cashFlatCollections = currentMaint.flats.filter(f => f.mode === 'Cash').reduce((acc, f) => acc + (f.paid || 0), 0);
+  const bankFlatCollections = currentMaint.flats.filter(f => f.mode !== 'Cash' && (f.paid || 0) > 0).reduce((acc, f) => acc + (f.paid || 0), 0);
+  const otherCashInflows = currentMaint.inflows.filter(i => (i.type || 'Cash') === 'Cash').reduce((acc, i) => acc + (i.amount || 0), 0);
+  const otherBankInflows = currentMaint.inflows.filter(i => i.type === 'Bank').reduce((acc, i) => acc + (i.amount || 0), 0);
+
+  const totalCashReceived = cashFlatCollections + otherCashInflows;
+  const totalBankInflows = bankFlatCollections + otherBankInflows;
+  const totalReceiptsAndInflows = totalCashReceived + totalBankInflows;
+
   // Separate Paid disbursements from Billed unpaid liabilities
   const paidExpenses = currentMaint.expenses.filter(e => e.status !== 'Billed');
   const billedExpenses = currentMaint.expenses.filter(e => e.status === 'Billed');
@@ -130,7 +140,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                 <h3 className="font-bold text-slate-900 text-sm">Receipts & Inflows (IA + IB)</h3>
               </div>
               <span className="text-xs font-mono font-bold text-emerald-700">
-                {formatINR(totalFlatPaid)}
+                {formatINR(totalReceiptsAndInflows)}
               </span>
             </div>
 
@@ -147,6 +157,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                       <td className="py-1.5 text-slate-600">Opening Cash Balance</td>
                       <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.cash_opening ?? 0)}</td>
                     </tr>
+                    {cashFlatCollections > 0 && (
+                      <tr>
+                        <td className="py-1.5 text-slate-600">Flat Maintenance Collections (Cash)</td>
+                        <td className="py-1.5 text-right font-mono font-semibold text-emerald-700">{formatINR(cashFlatCollections)}</td>
+                      </tr>
+                    )}
                     {currentMaint.inflows.filter(i => (i.type || 'Cash') === 'Cash').map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">
@@ -159,7 +175,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                     <tr className="bg-emerald-50/50 font-bold">
                       <td className="py-1.5 px-2 text-emerald-900">Total Cash Received (IA)</td>
                       <td className="py-1.5 px-2 text-right font-mono text-emerald-900">
-                        {formatINR(currentMaint.cash_total_in || totalFlatPaid)}
+                        {formatINR(totalCashReceived)}
                       </td>
                     </tr>
                   </tbody>
@@ -178,6 +194,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                       <td className="py-1.5 text-slate-600">Opening Bank Balance</td>
                       <td className="py-1.5 text-right font-mono font-semibold">{formatINR(currentMaint.bank_opening ?? 0)}</td>
                     </tr>
+                    {bankFlatCollections > 0 && (
+                      <tr>
+                        <td className="py-1.5 text-slate-600">Flat Maintenance Collections (Bank / Online)</td>
+                        <td className="py-1.5 text-right font-mono font-semibold text-blue-700">{formatINR(bankFlatCollections)}</td>
+                      </tr>
+                    )}
                     {currentMaint.inflows.filter(i => i.type === 'Bank').map((item, idx) => (
                       <tr key={idx}>
                         <td className="py-1.5 text-slate-600">
@@ -190,7 +212,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                     <tr className="bg-blue-50/50 font-bold">
                       <td className="py-1.5 px-2 text-blue-900">Total Bank Inflows (IB)</td>
                       <td className="py-1.5 px-2 text-right font-mono text-blue-900">
-                        {formatINR(currentMaint.bank_total_in || currentMaint.bank_opening)}
+                        {formatINR(totalBankInflows)}
                       </td>
                     </tr>
                   </tbody>
