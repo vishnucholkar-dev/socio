@@ -508,6 +508,75 @@ runTest('Admin can directly adjust Bank and Cash balances with positive and nega
   }, /locked legacy cycle/);
 });
 
+// 17. BILLED VS PAID EXPENSE ACCOUNTING
+runTest('Billed expenses do not deduct Cash/Bank balances until marked as Paid', () => {
+  const dataBefore = storage.getApartmentData();
+  const octMaintBefore = dataBefore.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const initialCash = octMaintBefore.cash_balance;
+  const initialBank = octMaintBefore.bank_balance;
+
+  // 1. Add an expense in 'Billed' mode
+  const withBilled = storage.addExpense('October 2026', {
+    description: 'Lift AMC Invoice (Payable)',
+    amount: 7500,
+    category: 'Lift AMC',
+    type: 'Bank',
+    status: 'Billed',
+    date: '2026-10-15'
+  });
+
+  let octMaint = withBilled.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const billedExp = octMaint.expenses.find(e => e.description === 'Lift AMC Invoice (Payable)');
+  assert(billedExp, 'Billed expense must exist in statement expenses');
+  assert.strictEqual(billedExp.status, 'Billed');
+
+  // Verify Bank and Cash balance DID NOT decrease!
+  assert.strictEqual(octMaint.bank_balance, initialBank, 'Bank balance must not be deducted for Billed expense');
+  assert.strictEqual(octMaint.cash_balance, initialCash, 'Cash balance must not be deducted for Billed expense');
+
+  // 2. Mark expense as 'Paid'
+  const withPaid = storage.updateExpense('October 2026', billedExp.id, {
+    ...billedExp,
+    status: 'Paid',
+    paid_date: '2026-10-25'
+  });
+
+  octMaint = withPaid.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const paidExp = octMaint.expenses.find(e => e.id === billedExp.id);
+  assert.strictEqual(paidExp.status, 'Paid');
+
+  // Verify Bank balance is NOW deducted by exactly 7500
+  assert.strictEqual(octMaint.bank_balance, Math.round((initialBank - 7500) * 100) / 100);
+
+  // 3. Delete expense restores the balance
+  const withDeleted = storage.deleteExpense('October 2026', billedExp.id);
+  octMaint = withDeleted.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(octMaint.bank_balance, initialBank, 'Bank balance restored upon deleting paid expense');
+});
+
+// 18. AUTH CREDENTIALS & SELF-SERVICE PASSWORDS
+runTest('Flat owners can change password and admin can reset flat PIN to default', async () => {
+  const auth = await import('../src/services/auth.ts');
+
+  // Initial default PIN verification
+  assert.strictEqual(auth.verifyFlatPin(101, '101'), true, 'Default PIN is flat number');
+  assert.strictEqual(auth.verifyFlatPin(101, '1234'), true, 'Default fallback is 1234');
+
+  // Flat 101 self-service password change
+  auth.changeFlatPassword(101, 'mySecurePass99');
+  assert.strictEqual(auth.verifyFlatPin(101, 'mySecurePass99'), true, 'Custom PIN verified');
+  assert.strictEqual(auth.verifyFlatPin(101, 'wrongPass'), false, 'Wrong PIN rejected');
+
+  // Admin resets Flat 101 PIN back to default
+  auth.resetFlatPin(101);
+  assert.strictEqual(auth.verifyFlatPin(101, '101'), true, 'PIN successfully reset to flat number');
+
+  // Admin password change
+  auth.changeAdminPassword('adminSuperSecret2026');
+  assert.strictEqual(auth.verifyAdminPassword('adminSuperSecret2026'), true, 'Admin custom password verified');
+  auth.changeAdminPassword('admin'); // restore default
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

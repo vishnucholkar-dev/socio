@@ -1,4 +1,4 @@
-import { UserRole, AuthSession } from '../types/apartment';
+import type { UserRole, AuthSession } from '../types/apartment';
 
 const AUTH_STORAGE_KEY = 'rockcliff_auth_session';
 const CREDENTIALS_STORAGE_KEY = 'rockcliff_auth_credentials';
@@ -51,6 +51,15 @@ export function changeWatchmanPin(newPin: string): void {
   }
   const creds = getStoredCredentials();
   creds.watchmanPin = newPin.trim();
+  saveCredentials(creds);
+}
+
+export function changeFlatPassword(flatNumber: number, newPassword: string): void {
+  if (!newPassword || newPassword.trim().length < 4) {
+    throw new Error('Password must be at least 4 characters long.');
+  }
+  const creds = getStoredCredentials();
+  creds.flatPins[flatNumber] = newPassword.trim();
   saveCredentials(creds);
 }
 

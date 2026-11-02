@@ -589,12 +589,17 @@ export function addExpense(monthSheet: string, expense: ExpenseItem): ApartmentD
   const created = {
     ...expense,
     type: channel,
+    status: expense.status || 'Paid',
     id: expense.id || makeId('exp'),
     amount: money(expense.amount),
     date: expense.date || now().split('T')[0]
   };
   m.expenses.push(created);
-  changeBalance(m, created.type || 'Cash', 0, created.amount);
+
+  // If status is 'Paid', deduct from cash/bank balance immediately. If 'Billed', do not disburse funds yet.
+  if (created.status !== 'Billed') {
+    changeBalance(m, created.type || 'Cash', 0, created.amount);
+  }
 
   // Auto-sync tanker / electricity expenses to water billing
   syncExpensesToWater(data, monthSheet);
@@ -618,15 +623,25 @@ export function updateExpense(month: string, id: string, next: ExpenseItem): Apa
   const index = locateExpense(m, id);
   if (index < 0) throw new Error('Expense was not found; reload the statement and try again.');
   const before = { ...m.expenses[index] };
-  changeBalance(m, before.type || 'Cash', 0, -before.amount);
-  const updated = {
+
+  // Reverse previous deduction only if it was previously Paid
+  if (before.status !== 'Billed') {
+    changeBalance(m, before.type || 'Cash', 0, -before.amount);
+  }
+
+  const updated: ExpenseItem = {
     ...next,
     id: before.id || makeId('exp'),
+    status: next.status || 'Paid',
     amount: money(next.amount),
     date: next.date || before.date || now().split('T')[0]
   };
   m.expenses[index] = updated;
-  changeBalance(m, updated.type || 'Cash', 0, updated.amount);
+
+  // Apply new deduction only if currently Paid
+  if (updated.status !== 'Billed') {
+    changeBalance(m, updated.type || 'Cash', 0, updated.amount);
+  }
 
   // Auto-sync tanker / electricity expenses to water billing
   syncExpensesToWater(data, month);
@@ -643,7 +658,11 @@ export function deleteExpense(month: string, id: string): ApartmentData {
   const index = locateExpense(m, id);
   if (index < 0) throw new Error('Expense was not found; reload the statement and try again.');
   const before = { ...m.expenses[index] };
-  changeBalance(m, before.type || 'Cash', 0, -before.amount);
+
+  // Restore balance only if it was Paid
+  if (before.status !== 'Billed') {
+    changeBalance(m, before.type || 'Cash', 0, -before.amount);
+  }
   m.expenses.splice(index, 1);
 
   // Auto-sync tanker / electricity expenses to water billing

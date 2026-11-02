@@ -63,6 +63,8 @@ export interface ExpenseItem {
   category: string;
   type?: 'Cash' | 'Bank';
   date?: string;
+  status?: 'Paid' | 'Billed';
+  paid_date?: string;
 }
 
 export interface InflowItem {

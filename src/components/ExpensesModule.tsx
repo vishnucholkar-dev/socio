@@ -104,6 +104,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const [inflowCategory, setInflowCategory] = useState('Vendor Ad Rent (Lift / Gate Displays)');
   const [expenseType, setExpenseType] = useState<'Cash' | 'Bank'>('Cash');
   const [entryKind, setEntryKind] = useState<'expense' | 'inflow' | 'transfer'>('expense');
+  const [expenseStatus, setExpenseStatus] = useState<'Paid' | 'Billed'>('Paid');
   const [editingExpense, setEditingExpense] = useState<ExpenseItem | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [inflowDescription, setInflowDescription] = useState('');
@@ -141,6 +142,10 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     return true;
   });
 
+  const paidExpenses = currentStatement.expenses.filter(e => e.status !== 'Billed');
+  const billedExpenses = currentStatement.expenses.filter(e => e.status === 'Billed');
+  const totalPaidExpenseAmount = paidExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  const totalBilledExpenseAmount = billedExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
   const totalExpenseAmount = currentStatement.expenses.reduce((acc, e) => acc + (e.amount || 0), 0);
 
   // Category aggregations
@@ -198,6 +203,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     setAmt(expense.amount);
     setCategory(expense.category || 'Miscellaneous');
     setExpenseType(expense.type || 'Cash');
+    setExpenseStatus(expense.status || 'Paid');
     setShowAddModal(true);
   };
 
@@ -246,6 +252,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
         amount: amt,
         category,
         type: expenseType,
+        status: expenseStatus,
         date: entryDate
       };
       saved = editingExpenseId ? onUpdateExpense(saveMonth, editingExpenseId, next) : onAddExpense(saveMonth, next);
@@ -404,19 +411,45 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
           <p className="text-xs text-slate-400 mt-1">Cash + Bank combined</p>
         </div>
 
-        {/* Total Expenses */}
+        {/* Total Expenses / Paid Outflows */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-600 uppercase">Month Outflows</span>
+            <span className="text-xs font-semibold text-rose-600 uppercase">Paid Outflows</span>
             <span className="p-2 bg-rose-50 text-rose-600 rounded-xl">
               <TrendingUp size={18} />
             </span>
           </div>
           <p className="text-2xl font-black text-rose-600 mt-2">
-            {formatINR(totalExpenseAmount)}
+            {formatINR(totalPaidExpenseAmount)}
           </p>
-          <p className="text-xs text-slate-400 mt-1">{currentStatement.expenses.length} itemized items</p>
+          <p className="text-xs text-slate-400 mt-1">{paidExpenses.length} paid disbursements</p>
         </div>
+
+        {/* Billed & Unpaid Liabilities */}
+        {totalBilledExpenseAmount > 0 && (
+          <div className="bg-amber-50/70 p-5 rounded-2xl border border-amber-300 shadow-sm col-span-2 sm:col-span-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <span className="p-2.5 rounded-xl bg-amber-100 text-amber-800 text-lg font-bold">📄</span>
+              <div>
+                <span className="text-xs font-black uppercase text-amber-900 tracking-wider">
+                  Billed Liabilities (Payable Later)
+                </span>
+                <p className="text-xs text-amber-800 mt-0.5">
+                  Invoices received for this cycle but not yet paid out of Cash/Bank balances ({billedExpenses.length} items).
+                </p>
+              </div>
+            </div>
+
+            <div className="text-right">
+              <span className="text-xl font-black font-mono text-amber-900 block">
+                {formatINR(totalBilledExpenseAmount)}
+              </span>
+              <span className="text-[10px] text-amber-700 font-bold">
+                Does not deduct from cash/bank yet
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top Expense Categories Breakdown */}
@@ -501,6 +534,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 <th className="py-3 px-4">#</th>
                 <th className="py-3 px-4">Expense Description</th>
                 <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-center">Payment Channel</th>
                 <th className="py-3 px-4 text-right">Amount</th>
                 {canEdit && <th className="py-3 px-4 text-right">Actions</th>}
@@ -509,41 +543,70 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 6 : 5} className="py-8 text-center text-slate-400">
+                  <td colSpan={canEdit ? 7 : 6} className="py-8 text-center text-slate-400">
                     No expense records found matching current filters.
                   </td>
                 </tr>
               ) : (
-                filteredExpenses.map((exp, idx) => (
-                  <tr key={exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-3 px-4 text-slate-400 font-mono">{idx + 1}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-900">{exp.description}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                        {exp.category || 'General'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          (exp.type || 'Cash') === 'Cash'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}
-                      >
-                        {(exp.type || 'Cash') === 'Cash' ? <Wallet size={12} /> : <CreditCard size={12} />}
-                        <span>{exp.type || 'Cash'}</span>
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
-                      {formatINR(exp.amount)}
-                    </td>
-                    {canEdit && <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <button onClick={() => openEditExpense(exp, currentStatement.expenses.indexOf(exp))} className="text-blue-700 font-semibold mr-3">Edit</button>
-                      <button onClick={() => { if (window.confirm(`Delete expense “${exp.description}”?`)) onDeleteExpense(currentStatement.sheet_name, exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`); }} className="text-rose-700 font-semibold">Delete</button>
-                    </td>}
-                  </tr>
-                ))
+                filteredExpenses.map((exp, idx) => {
+                  const isBilled = exp.status === 'Billed';
+                  return (
+                    <tr key={exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4 text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="py-3 px-4 font-semibold text-slate-900">{exp.description}</td>
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                          {exp.category || 'General'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isBilled
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        }`}>
+                          {isBilled ? '📄 Billed' : '✓ Paid'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            (exp.type || 'Cash') === 'Cash'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}
+                        >
+                          {(exp.type || 'Cash') === 'Cash' ? <Wallet size={12} /> : <CreditCard size={12} />}
+                          <span>{exp.type || 'Cash'}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right font-black font-mono text-slate-900 text-sm">
+                        {formatINR(exp.amount)}
+                      </td>
+                      {canEdit && (
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {isBilled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onUpdateExpense(currentStatement.sheet_name, exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`, {
+                                  ...exp,
+                                  status: 'Paid',
+                                  paid_date: new Date().toISOString().slice(0, 10)
+                                });
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold mr-2 shadow-2xs transition-all"
+                            >
+                              Mark as Paid
+                            </button>
+                          )}
+                          <button onClick={() => openEditExpense(exp, currentStatement.expenses.indexOf(exp))} className="text-blue-700 font-semibold mr-3">Edit</button>
+                          <button onClick={() => { if (window.confirm(`Delete expense “${exp.description}”?`)) onDeleteExpense(currentStatement.sheet_name, exp.id || `legacy-exp-${currentStatement.expenses.indexOf(exp)}`); }} className="text-rose-700 font-semibold">Delete</button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
             {filteredExpenses.length > 0 && (
@@ -689,8 +752,45 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                 </select>
               </div>}
 
+              {entryKind === 'expense' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Status</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setExpenseStatus('Paid')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                        expenseStatus === 'Paid'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-2xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      ✓ Paid (Disbursed)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpenseStatus('Billed')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                        expenseStatus === 'Billed'
+                          ? 'border-amber-600 bg-amber-50 text-amber-800 shadow-2xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      📄 Billed (Pay Later)
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    {expenseStatus === 'Billed'
+                      ? 'Invoice will be recognized as liability; cash/bank balance is NOT deducted until marked paid.'
+                      : 'Amount is immediately deducted from the selected cash/bank balance.'}
+                  </span>
+                </div>
+              )}
+
               {entryKind === 'expense' ? <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Paid Via</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {expenseStatus === 'Billed' ? 'Payment Account Channel (When Settled)' : 'Paid Via'}
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"

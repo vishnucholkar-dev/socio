@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
 import { formatINR, formatLiters, formatINRExact } from '../services/calculations';
 import { sameCalendarMonth } from '../services/storage';
+import { changeFlatPassword } from '../services/auth';
 import { Receipt, Droplet, CheckCircle2, AlertCircle, TrendingUp, Calendar, Phone, ArrowRight } from './Icons';
 
 interface ResidentDashboardProps {
@@ -63,6 +64,11 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   const isPaid = (flatMaint?.pending || 0) <= 1;
   const isReadingPending = !flatWater || flatWater.closing_reading <= flatWater.opening_reading || currentWater?.readings_complete !== true;
 
+  // Password Change Modal State for Flat Owner
+  const [showPwdModal, setShowPwdModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [pwdMsg, setPwdMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner for Resident */}
@@ -86,6 +92,17 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2.5">
+            <button
+              onClick={() => {
+                setNewPassword('');
+                setPwdMsg(null);
+                setShowPwdModal(true);
+              }}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+            >
+              <span>🔐</span>
+              <span>Change Password</span>
+            </button>
             <button
               onClick={() => setActiveTab('resident-history')}
               className="px-4 py-2.5 bg-white text-blue-900 rounded-xl text-xs font-bold shadow-md hover:bg-blue-50 transition-all flex items-center space-x-1.5"
@@ -337,6 +354,88 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Flat Owner Change Password Modal */}
+      {showPwdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 rounded-xl bg-purple-100 text-purple-700 font-bold text-sm">🔐</span>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Change Flat {selectedFlat} PIN</h3>
+                  <p className="text-[11px] text-slate-500">Personal resident password</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPwdModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setPwdMsg(null);
+                try {
+                  changeFlatPassword(selectedFlat, newPassword);
+                  setPwdMsg({ type: 'success', text: 'Password updated successfully! Use this new PIN on your next login.' });
+                  setTimeout(() => {
+                    setShowPwdModal(false);
+                  }, 2000);
+                } catch (err) {
+                  setPwdMsg({ type: 'error', text: err instanceof Error ? err.message : 'Failed to update password.' });
+                }
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  New PIN / Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Min. 4 characters (e.g. 1234)"
+                  required
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm font-mono font-bold bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Your default PIN is your flat number ("{selectedFlat}") or "1234".
+                </span>
+              </div>
+
+              {pwdMsg && (
+                <div className={`p-3 rounded-xl text-xs font-semibold ${
+                  pwdMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}>
+                  {pwdMsg.text}
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPwdModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                >
+                  Save PIN
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
