@@ -61,6 +61,7 @@ export const App: React.FC = () => {
   const [isRatePolicyOpen, setIsRatePolicyOpen] = useState(false);
   const [isBackupExportOpen, setIsBackupExportOpen] = useState(false);
   const [isResidentPwdOpen, setIsResidentPwdOpen] = useState(false);
+  const [statementView, setStatementView] = useState<'monthly' | 'yearly'>('monthly');
   const [actionError, setActionError] = useState<string | null>(null);
 
   // All cycle labels (including unopened successor periods) come from cycle metadata.
@@ -280,30 +281,53 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'monthly-statement' && (
-          <div className="space-y-8">
-            <MonthlyStatement
-              selectedMonth={selectedMonth}
-              allMaintenanceStatements={data.maintenance_statements}
-              allWaterStatements={data.water_statements}
-              onSelectMonth={setSelectedMonth}
-            />
-            {currentRole === 'user' && (
-              <div className="pt-6 border-t border-slate-200">
-                <YearlyStatement
-                  maintenanceStatements={data.maintenance_statements}
-                  waterStatements={data.water_statements}
-                />
+        {(activeTab === 'monthly-statement' || activeTab === 'yearly-statement') && (
+          <div className="space-y-4">
+            {/* Best Place: Centered Segmented Control Tags */}
+            <div className="flex justify-center mb-2 no-print">
+              <div className="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300/70 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setStatementView('monthly')}
+                  className={`px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center space-x-2 ${
+                    statementView === 'monthly'
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="text-sm sm:text-base">📅</span>
+                  <span>Monthly Statement</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatementView('yearly')}
+                  className={`px-4 sm:px-6 py-2 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center space-x-2 ${
+                    statementView === 'yearly'
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="text-sm sm:text-base">📈</span>
+                  <span>Yearly Statement</span>
+                </button>
               </div>
+            </div>
+
+            {/* Display Active Statement Only (No Vertical Stacking!) */}
+            {statementView === 'monthly' ? (
+              <MonthlyStatement
+                selectedMonth={selectedMonth}
+                allMaintenanceStatements={data.maintenance_statements}
+                allWaterStatements={data.water_statements}
+                onSelectMonth={setSelectedMonth}
+              />
+            ) : (
+              <YearlyStatement
+                maintenanceStatements={data.maintenance_statements}
+                waterStatements={data.water_statements}
+              />
             )}
           </div>
-        )}
-
-        {activeTab === 'yearly-statement' && (
-          <YearlyStatement
-            maintenanceStatements={data.maintenance_statements}
-            waterStatements={data.water_statements}
-          />
         )}
 
         {activeTab === 'directory' && (
