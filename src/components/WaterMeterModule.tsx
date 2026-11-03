@@ -791,33 +791,33 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                     </td>
 
                     {/* Avg/Day */}
-                    <td className="py-2.5 px-3 text-right text-slate-500">
-                      {flat.avg_per_day} L
+                    <td className="py-2.5 px-3 text-right text-slate-500 font-mono">
+                      {Number(flat.avg_per_day || 0).toFixed(2)}
                     </td>
 
                     {/* Water Charge */}
                     <td className="py-2.5 px-3 text-right text-slate-700 font-mono">
-                      {formatINR(flat.water_charge)}
+                      {formatINR(Math.round(flat.water_charge || 0))}
                     </td>
 
                     {/* Base Maint */}
                     <td className="py-2.5 px-3 text-right text-slate-500 font-mono">
-                      {formatINR(flat.mandatory_maintenance)}
+                      {formatINR(Math.round(flat.mandatory_maintenance || 0))}
                     </td>
 
                     {/* Actual Month */}
                     <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">
-                      {formatINR(flat.actual_amount)}
+                      {formatINR(Math.round(flat.actual_amount || 0))}
                     </td>
 
                     {/* Pending */}
                     <td className={`py-2.5 px-3 text-right font-mono ${flat.pending_amount > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
-                      {formatINR(flat.pending_amount)}
+                      {formatINR(Math.round(flat.pending_amount || 0))}
                     </td>
 
                     {/* Total Payable */}
                     <td className="py-2.5 px-3 text-right font-black text-slate-900 font-mono bg-slate-50/60">
-                      {formatINR(flat.total_payable)}
+                      {formatINR(Math.round(flat.total_payable || 0))}
                     </td>
                   </tr>
                 );

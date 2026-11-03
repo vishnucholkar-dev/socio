@@ -48,15 +48,15 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
     const tableRowsHtml = flats.map(flat => `
       <tr>
         <td class="text-center font-bold text-dark">${flat.flat}</td>
-        <td class="text-right text-muted">${flat.opening_reading.toLocaleString('en-IN')}</td>
-        <td class="text-right font-bold text-dark">${flat.closing_reading.toLocaleString('en-IN')}</td>
-        <td class="text-right font-bold text-purple">${flat.liters.toLocaleString('en-IN')}</td>
-        <td class="text-right text-muted">${flat.avg_per_day}</td>
-        <td class="text-right font-semibold text-dark">₹${flat.water_charge.toLocaleString('en-IN')}</td>
-        <td class="text-right text-muted">₹${flat.mandatory_maintenance.toLocaleString('en-IN')}</td>
-        <td class="text-right font-bold text-dark">₹${flat.actual_amount.toLocaleString('en-IN')}</td>
-        <td class="text-right font-semibold ${flat.pending_amount > 0 ? 'text-red' : 'text-muted'}">₹${flat.pending_amount.toLocaleString('en-IN')}</td>
-        <td class="text-right font-bold text-dark">₹${flat.total_payable.toLocaleString('en-IN')}</td>
+        <td class="text-right text-muted">${Math.round(flat.opening_reading).toLocaleString('en-IN')}</td>
+        <td class="text-right font-bold text-dark">${Math.round(flat.closing_reading).toLocaleString('en-IN')}</td>
+        <td class="text-right font-bold text-purple">${Math.round(flat.liters).toLocaleString('en-IN')}</td>
+        <td class="text-right text-muted">${Number(flat.avg_per_day || 0).toFixed(2)}</td>
+        <td class="text-right font-semibold text-dark">₹${Math.round(flat.water_charge || 0).toLocaleString('en-IN')}</td>
+        <td class="text-right text-muted">₹${Math.round(flat.mandatory_maintenance || 0).toLocaleString('en-IN')}</td>
+        <td class="text-right font-bold text-dark">₹${Math.round(flat.actual_amount || 0).toLocaleString('en-IN')}</td>
+        <td class="text-right font-semibold ${flat.pending_amount > 0 ? 'text-red' : 'text-muted'}">₹${Math.round(flat.pending_amount || 0).toLocaleString('en-IN')}</td>
+        <td class="text-right font-bold text-dark">₹${Math.round(flat.total_payable || 0).toLocaleString('en-IN')}</td>
       </tr>
     `).join('');
 
@@ -271,13 +271,13 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
               <td class="text-center">TOTALS</td>
               <td class="text-right">—</td>
               <td class="text-right">—</td>
-              <td class="text-right text-purple">${totalLiters.toLocaleString('en-IN')} L</td>
+              <td class="text-right text-purple">${Math.round(totalLiters).toLocaleString('en-IN')} L</td>
               <td class="text-right">—</td>
-              <td class="text-right">₹${totalWaterCost.toLocaleString('en-IN')}</td>
-              <td class="text-right">₹${totalBaseMaint.toLocaleString('en-IN')}</td>
-              <td class="text-right text-blue">₹${totalMonthBill.toLocaleString('en-IN')}</td>
-              <td class="text-right text-red">₹${totalPending.toLocaleString('en-IN')}</td>
-              <td class="text-right text-dark">₹${totalPayable.toLocaleString('en-IN')}</td>
+              <td class="text-right">₹${Math.round(totalWaterCost).toLocaleString('en-IN')}</td>
+              <td class="text-right">₹${Math.round(totalBaseMaint).toLocaleString('en-IN')}</td>
+              <td class="text-right text-blue">₹${Math.round(totalMonthBill).toLocaleString('en-IN')}</td>
+              <td class="text-right text-red">₹${Math.round(totalPending).toLocaleString('en-IN')}</td>
+              <td class="text-right text-dark">₹${Math.round(totalPayable).toLocaleString('en-IN')}</td>
             </tr>
           </tfoot>
         </table>
@@ -455,17 +455,17 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
               {flats.map((flat) => (
                 <tr key={flat.flat} className="hover:bg-slate-50/80">
                   <td className="py-0.5 px-1.5 text-center font-bold font-sans text-slate-900 border-r border-slate-200">{flat.flat}</td>
-                  <td className="py-0.5 px-1.5 text-right text-slate-600 border-r border-slate-200">{flat.opening_reading.toLocaleString('en-IN')}</td>
-                  <td className="py-0.5 px-1.5 text-right text-slate-900 font-bold border-r border-slate-200">{flat.closing_reading.toLocaleString('en-IN')}</td>
-                  <td className="py-0.5 px-1.5 text-right font-bold text-purple-700 border-r border-slate-200">{flat.liters.toLocaleString('en-IN')}</td>
-                  <td className="py-0.5 px-1.5 text-right text-slate-500 border-r border-slate-200">{flat.avg_per_day}</td>
-                  <td className="py-0.5 px-1.5 text-right font-semibold text-slate-800 border-r border-slate-200">{formatINR(flat.water_charge)}</td>
-                  <td className="py-0.5 px-1.5 text-right text-slate-600 border-r border-slate-200">{formatINR(flat.mandatory_maintenance)}</td>
-                  <td className="py-0.5 px-1.5 text-right font-bold text-slate-900 border-r border-slate-200">{formatINR(flat.actual_amount)}</td>
+                  <td className="py-0.5 px-1.5 text-right text-slate-600 border-r border-slate-200">{Math.round(flat.opening_reading).toLocaleString('en-IN')}</td>
+                  <td className="py-0.5 px-1.5 text-right text-slate-900 font-bold border-r border-slate-200">{Math.round(flat.closing_reading).toLocaleString('en-IN')}</td>
+                  <td className="py-0.5 px-1.5 text-right font-bold text-purple-700 border-r border-slate-200">{Math.round(flat.liters).toLocaleString('en-IN')}</td>
+                  <td className="py-0.5 px-1.5 text-right text-slate-500 border-r border-slate-200">{Number(flat.avg_per_day || 0).toFixed(2)}</td>
+                  <td className="py-0.5 px-1.5 text-right font-semibold text-slate-800 border-r border-slate-200">{formatINR(Math.round(flat.water_charge || 0))}</td>
+                  <td className="py-0.5 px-1.5 text-right text-slate-600 border-r border-slate-200">{formatINR(Math.round(flat.mandatory_maintenance || 0))}</td>
+                  <td className="py-0.5 px-1.5 text-right font-bold text-slate-900 border-r border-slate-200">{formatINR(Math.round(flat.actual_amount || 0))}</td>
                   <td className={`py-0.5 px-1.5 text-right font-semibold border-r border-slate-200 ${flat.pending_amount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                    {formatINR(flat.pending_amount)}
+                    {formatINR(Math.round(flat.pending_amount || 0))}
                   </td>
-                  <td className="py-0.5 px-1.5 text-right font-black text-slate-900">{formatINR(flat.total_payable)}</td>
+                  <td className="py-0.5 px-1.5 text-right font-black text-slate-900">{formatINR(Math.round(flat.total_payable || 0))}</td>
                 </tr>
               ))}
             </tbody>
@@ -474,13 +474,13 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
                 <td className="py-1 px-1.5 text-center font-sans border-r border-slate-300">TOTALS</td>
                 <td className="py-1 px-1.5 text-right border-r border-slate-300">—</td>
                 <td className="py-1 px-1.5 text-right border-r border-slate-300">—</td>
-                <td className="py-1 px-1.5 text-right text-purple-700 border-r border-slate-300">{totalLiters.toLocaleString('en-IN')} L</td>
+                <td className="py-1 px-1.5 text-right text-purple-700 border-r border-slate-300">{Math.round(totalLiters).toLocaleString('en-IN')} L</td>
                 <td className="py-1 px-1.5 text-right border-r border-slate-300">—</td>
-                <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(totalWaterCost)}</td>
-                <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(totalBaseMaint)}</td>
-                <td className="py-1 px-1.5 text-right text-blue-700 border-r border-slate-300">{formatINR(totalMonthBill)}</td>
-                <td className={`py-1 px-1.5 text-right border-r border-slate-300 ${totalPending > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{formatINR(totalPending)}</td>
-                <td className="py-1 px-1.5 text-right text-slate-900">{formatINR(totalPayable)}</td>
+                <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(Math.round(totalWaterCost))}</td>
+                <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(Math.round(totalBaseMaint))}</td>
+                <td className="py-1 px-1.5 text-right text-blue-700 border-r border-slate-300">{formatINR(Math.round(totalMonthBill))}</td>
+                <td className={`py-1 px-1.5 text-right border-r border-slate-300 ${totalPending > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{formatINR(Math.round(totalPending))}</td>
+                <td className="py-1 px-1.5 text-right text-slate-900">{formatINR(Math.round(totalPayable))}</td>
               </tr>
             </tfoot>
           </table>
