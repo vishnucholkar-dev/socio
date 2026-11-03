@@ -28,7 +28,8 @@ import {
   deleteContact,
   addBillingConfig,
   exportApartmentDataBackup,
-  importApartmentDataBackup
+  importApartmentDataBackup,
+  syncServerApartmentData
 } from './services/storage';
 
 import { Navbar } from './components/Navbar';
@@ -87,13 +88,31 @@ export const App: React.FC = () => {
   );
   const allowOpenAction = currentRole === 'admin' && !nextHasActivity && currentCycleIdx === availableMonths.length - 1;
 
-  // Sync state with storage updates
+  // Sync state with storage updates & server real-time sync
   useEffect(() => {
+    // 1. Initial server hydration: pulls authoritative state so mobile/desktop stay identical
+    syncServerApartmentData().then(serverState => {
+      if (serverState) setData(serverState);
+    });
+
+    // 2. Tab focus sync: re-syncs when mobile user switches back to browser tab
+    const handleFocus = () => {
+      syncServerApartmentData().then(serverState => {
+        if (serverState) setData(serverState);
+      });
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // 3. Local custom event listener
     const handleDataChange = (e: any) => {
       if (e.detail) setData({ ...e.detail });
     };
     window.addEventListener('apartment-data-changed', handleDataChange);
-    return () => window.removeEventListener('apartment-data-changed', handleDataChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('apartment-data-changed', handleDataChange);
+    };
   }, []);
 
   const runAction = (action: () => ApartmentData): boolean => {

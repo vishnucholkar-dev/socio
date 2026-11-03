@@ -275,14 +275,51 @@ const PRODUCTION_SNAPSHOT_KEY = 'rockcliff_production_snapshot_latest';
 
 function persist(data: ApartmentData): void {
   const jsonStr = JSON.stringify(data);
-  localStorage.setItem(STORAGE_KEY, jsonStr);
-  // Rolling safety snapshot: protects against accidental local storage wipes
   try {
+    localStorage.setItem(STORAGE_KEY, jsonStr);
     localStorage.setItem(PRODUCTION_SNAPSHOT_KEY, jsonStr);
   } catch (err) {
-    console.warn('Could not write safety snapshot:', err);
+    console.warn('Could not write localStorage:', err);
   }
-  window.dispatchEvent(new CustomEvent('apartment-data-changed', { detail: data }));
+
+  // Push update to central server in background if running in browser with a location
+  if (typeof window !== 'undefined' && window.location && window.location.origin && typeof fetch === 'function') {
+    fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: jsonStr
+    }).catch(err => {
+      // Offline fallback: silent warning, local storage preserves state
+      console.warn('[Sync] Server sync queued locally:', err);
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('apartment-data-changed', { detail: data }));
+  }
+}
+
+/**
+ * Asynchronously checks central server /api/data to sync live data across desktop and mobile devices.
+ */
+export async function syncServerApartmentData(): Promise<ApartmentData | null> {
+  if (typeof window === 'undefined' || typeof fetch !== 'function') return null;
+  try {
+    const resp = await fetch('/api/data', { cache: 'no-store' });
+    if (!resp.ok) return null;
+    const serverData = (await resp.json()) as ApartmentData;
+    if (serverData && Array.isArray(serverData.maintenance_statements) && Array.isArray(serverData.water_statements)) {
+      const normalized = normalizeData(serverData);
+      const jsonStr = JSON.stringify(normalized.data);
+      localStorage.setItem(STORAGE_KEY, jsonStr);
+      localStorage.setItem(PRODUCTION_SNAPSHOT_KEY, jsonStr);
+      window.dispatchEvent(new CustomEvent('apartment-data-changed', { detail: normalized.data }));
+      return normalized.data;
+    }
+  } catch (err) {
+    console.warn('[Sync] Could not reach server /api/data; continuing with local storage.', err);
+  }
+  return null;
 }
 
 export function getApartmentData(): ApartmentData {
