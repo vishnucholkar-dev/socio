@@ -42,9 +42,12 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
   }, 0);
 
   // Find flats with pending dues for current month
-  const highDueFlats = currentMaint?.flats
-    .filter(f => f.pending > 10)
-    .sort((a, b) => b.pending - a.pending) || [];
+  const pendingFlats = (currentMaint?.flats || [])
+    .filter(f => (f.pending || 0) > 1)
+    .sort((a, b) => a.flat - b.flat);
+
+  const pendingFlatNumbersString = pendingFlats.map(f => f.flat).join(', ');
+  const highDueFlats = [...pendingFlats].sort((a, b) => b.pending - a.pending);
 
   // Parse current active cycle year
   const activeYearMatch = selectedMonth.match(/202[4-6]/);
@@ -103,6 +106,72 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
+      {/* =========================================================================
+          FIRST PLACE BANNER: PENDING MAINTENANCE FLAT NUMBERS OR ALL PAID
+          ========================================================================= */}
+      {pendingFlats.length > 0 ? (
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-rose-50 via-amber-50/70 to-rose-50 border border-rose-300/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center space-x-3 min-w-0">
+            <span className="p-2 sm:p-2.5 rounded-xl bg-rose-100 text-rose-700 text-base sm:text-lg font-bold shrink-0 shadow-2xs">
+              ⚠️
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-rose-800 bg-rose-100/90 px-2 py-0.5 rounded-full border border-rose-200">
+                  Pending Maintenance ({selectedMonth})
+                </span>
+                <span className="text-[11px] font-bold text-rose-700 font-mono">
+                  {pendingFlats.length} Flats • Total {formatINR(totalPending)}
+                </span>
+              </div>
+              <p className="text-sm sm:text-base font-black text-slate-900 mt-1 truncate">
+                Pending Flats: <span className="font-mono text-rose-600 underline decoration-rose-300 font-extrabold">{pendingFlatNumbersString}</span>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5 hidden xs:block">
+                These flats have outstanding balances for {selectedMonth}. Click to collect or send payment reminders.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('collections')}
+            className="px-4 py-2 sm:py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center space-x-1.5 shrink-0 transition-all active:scale-95"
+          >
+            <span>Collect Dues</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 sm:p-5 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-300 shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center space-x-3 min-w-0">
+            <span className="p-2 sm:p-2.5 rounded-xl bg-emerald-100 text-emerald-700 text-base sm:text-lg font-bold shrink-0 shadow-2xs">
+              ✓
+            </span>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                  {selectedMonth} Status
+                </span>
+                <span className="text-[11px] font-bold text-emerald-800">100% Collected</span>
+              </div>
+              <h2 className="text-sm sm:text-base font-black text-emerald-950 mt-0.5">
+                All 32 Flats Paid & Cleared — No Pending Maintenance!
+              </h2>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('collections')}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs hidden sm:flex items-center space-x-1 shrink-0"
+          >
+            <span>View All</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
+
       {/* Welcome & Command Center Banner */}
       <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-md relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
