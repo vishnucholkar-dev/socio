@@ -102,47 +102,47 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
   const totalYearMargin = totalYearCollections - totalYearExpenses;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
       {/* Welcome & Command Center Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-6 sm:p-8 rounded-3xl shadow-lg relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 text-white p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl shadow-md relative overflow-hidden">
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-blue-100">
+            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-white/20 text-blue-100">
                 Society Executive Intelligence
               </span>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
                 Active Cycle: {selectedMonth}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight">
               Rockcliff 'B' Block Residents Association
             </h1>
-            <p className="text-xs sm:text-sm text-blue-200 mt-1 max-w-xl">
+            <p className="text-xs sm:text-sm text-blue-200 mt-1 max-w-xl hidden sm:block">
               Central management dashboard • 32 flats, meter-based water distribution, and reconciled society accounting.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
+          <div className="hidden sm:flex flex-wrap gap-2">
             <button
               onClick={() => setActiveTab('water-meter')}
-              className="px-4 py-2 bg-white text-blue-900 rounded-xl text-xs font-bold shadow-md hover:bg-blue-50 transition-all flex items-center space-x-1.5"
+              className="px-3.5 py-2 bg-white text-blue-900 rounded-xl text-xs font-bold shadow-md hover:bg-blue-50 transition-all flex items-center space-x-1.5"
             >
-              <Droplet size={15} className="text-blue-600" />
+              <Droplet size={14} className="text-blue-600" />
               <span>Water Meter Readings</span>
             </button>
             <button
               onClick={() => setActiveTab('collections')}
-              className="px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
+              className="px-3.5 py-2 bg-blue-600/80 hover:bg-blue-600 text-white border border-white/20 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5"
             >
-              <Receipt size={15} />
+              <Receipt size={14} />
               <span>32 Flats Collections</span>
             </button>
             <button
               onClick={() => setActiveTab('expenses')}
-              className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
+              className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
             >
-              <DollarSign size={15} />
+              <DollarSign size={14} />
               <span>Expenses & Cash</span>
             </button>
           </div>
@@ -150,79 +150,79 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
       </div>
 
       {/* Cumulative Lifetime Society Intelligence Grid */}
-      <div>
-        <div className="flex items-center space-x-2 mb-3 px-1">
+      <div className="w-full">
+        <div className="flex items-center space-x-1.5 mb-2.5 px-0.5">
           <span className="p-1 rounded-md bg-purple-100 text-purple-700 font-bold text-xs">🏛️</span>
-          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-            Cumulative Society Lifetime Intelligence ({data.maintenance_statements.length} Months Tracked)
+          <h3 className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-700 truncate">
+            Cumulative Lifetime Intelligence ({data.maintenance_statements.length} Months Tracked)
           </h3>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Lifetime Collections</span>
-            <p className="text-2xl font-black text-emerald-700 mt-1 font-mono">{formatINR(lifetimeCollections)}</p>
-            <span className="text-[11px] text-slate-400">Total cleared owner payments</span>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3.5">
+          <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 uppercase tracking-wider truncate block">Lifetime Collections</span>
+            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-emerald-700 mt-1 font-mono tracking-tight truncate block">{formatINR(lifetimeCollections)}</p>
+            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">Total cleared owner payments</span>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">Lifetime Outflows</span>
-            <p className="text-2xl font-black text-rose-600 mt-1 font-mono">{formatINR(lifetimeExpenses)}</p>
-            <span className="text-[11px] text-slate-400">Total society maintenance spent</span>
+          <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+            <span className="text-[9px] sm:text-[10px] font-bold text-rose-800 uppercase tracking-wider truncate block">Lifetime Outflows</span>
+            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-rose-600 mt-1 font-mono tracking-tight truncate block">{formatINR(lifetimeExpenses)}</p>
+            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">Total maintenance spent</span>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Lifetime Water Pumped</span>
-            <p className="text-2xl font-black text-blue-900 mt-1 font-mono">{formatLiters(lifetimeWaterPumped)}</p>
-            <span className="text-[11px] text-slate-400">32 flats cumulative consumption</span>
+          <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+            <span className="text-[9px] sm:text-[10px] font-bold text-blue-800 uppercase tracking-wider truncate block">Lifetime Water Pumped</span>
+            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-blue-900 mt-1 font-mono tracking-tight truncate block">{formatLiters(lifetimeWaterPumped)}</p>
+            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">32 flats consumption</span>
           </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">Current Liquid Funds</span>
-            <p className="text-2xl font-black text-purple-700 mt-1 font-mono">{formatINR(currentMaint?.total_balance)}</p>
-            <span className="text-[11px] text-slate-400">Cash: {formatINR(currentMaint?.cash_balance)} | Bank: {formatINR(currentMaint?.bank_balance)}</span>
+          <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+            <span className="text-[9px] sm:text-[10px] font-bold text-purple-800 uppercase tracking-wider truncate block">Current Liquid Funds</span>
+            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-purple-700 mt-1 font-mono tracking-tight truncate block">{formatINR(currentMaint?.total_balance)}</p>
+            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">Cash: {formatINR(currentMaint?.cash_balance)} | Bank: {formatINR(currentMaint?.bank_balance)}</span>
           </div>
         </div>
       </div>
 
       {/* Selected Month Status Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3.5">
         {/* Month Target Billed */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase">{selectedMonth} Assessment</span>
-          <p className="text-2xl font-black text-slate-900 mt-2 font-mono">{formatINR(totalBilled)}</p>
-          <p className="text-xs text-slate-400 mt-1">32 flats monthly bill target</p>
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+          <span className="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase truncate block">{selectedMonth} Target</span>
+          <p className="text-base sm:text-xl lg:text-2xl font-black text-slate-900 mt-1 font-mono tracking-tight truncate block">{formatINR(totalBilled)}</p>
+          <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5 truncate block">32 flats bill assessment</p>
         </div>
 
         {/* Collections */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-emerald-600 uppercase">{selectedMonth} Collected</span>
-          <p className="text-2xl font-black text-emerald-600 mt-2 font-mono">{formatINR(totalCollected)}</p>
-          <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
-            <span className="font-bold text-emerald-700">{collectionPercent}% Recovered</span>
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+          <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 uppercase truncate block">{selectedMonth} Collected</span>
+          <p className="text-base sm:text-xl lg:text-2xl font-black text-emerald-600 mt-1 font-mono tracking-tight truncate block">{formatINR(totalCollected)}</p>
+          <div className="flex items-center justify-between text-[10px] sm:text-xs text-slate-500 mt-1">
+            <span className="font-bold text-emerald-700">{collectionPercent}%</span>
             <span className="text-slate-400">{currentMaint?.flats.filter(f => f.pending <= 1).length} / 32 Paid</span>
           </div>
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
-            <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${collectionPercent}%` }}></div>
+          <div className="w-full bg-slate-100 rounded-full h-1 mt-1.5 overflow-hidden">
+            <div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${collectionPercent}%` }}></div>
           </div>
         </div>
 
         {/* Water Consumption */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <span className="text-xs font-semibold text-blue-600 uppercase">{selectedMonth} Water Usage</span>
-          <p className="text-2xl font-black text-blue-600 mt-2 font-mono">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
+          <span className="text-[10px] sm:text-xs font-semibold text-blue-600 uppercase truncate block">{selectedMonth} Water</span>
+          <p className="text-base sm:text-xl lg:text-2xl font-black text-blue-600 mt-1 font-mono tracking-tight truncate block">
             {formatLiters(currentWater?.total_water_consumption_liters)}
           </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Rate: <strong>₹{currentWater?.liter_per_charge?.toFixed(4) || '0.00'}/L</strong> • Tankers: {formatINR(currentWater?.tanker_bill)}
+          <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5 truncate block">
+            Rate: ₹{currentWater?.liter_per_charge?.toFixed(2) || '0.00'}/L
           </p>
         </div>
 
         {/* Pending Dues */}
-        <div className={`p-5 rounded-3xl border shadow-sm ${totalPending > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
-          <span className="text-xs font-semibold text-rose-600 uppercase">{selectedMonth} Pending</span>
-          <p className="text-2xl font-black text-rose-600 mt-2 font-mono">{formatINR(totalPending)}</p>
-          <p className="text-xs text-rose-700 mt-1 font-bold">
+        <div className={`p-3 sm:p-5 rounded-2xl sm:rounded-3xl border shadow-xs flex flex-col justify-between min-w-0 overflow-hidden ${totalPending > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-200'}`}>
+          <span className="text-[10px] sm:text-xs font-semibold text-rose-600 uppercase truncate block">{selectedMonth} Pending</span>
+          <p className="text-base sm:text-xl lg:text-2xl font-black text-rose-600 mt-1 font-mono tracking-tight truncate block">{formatINR(totalPending)}</p>
+          <p className="text-[10px] sm:text-xs text-rose-700 mt-0.5 font-bold truncate block">
             {highDueFlats.length} flats requiring follow-up
           </p>
         </div>

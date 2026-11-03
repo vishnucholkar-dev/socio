@@ -192,8 +192,8 @@ export const App: React.FC = () => {
         onOpenBackupExport={() => setIsBackupExportOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Content Area: pb-28 gives safe clearance above mobile bottom nav */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-4 pb-28 sm:pb-8 overflow-x-hidden">
         {actionError && <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 whitespace-pre-wrap">{actionError}<button className="float-right font-bold" onClick={() => setActionError(null)} aria-label="Dismiss error">×</button></div>}
         {activeTab === 'cycle-management' && currentRole === 'admin' && (
           <CycleManagement data={data} month={selectedMonth} isAdmin={currentRole === 'admin'} onCloseCycle={handleCloseCycle} onOpenNext={(month) => { try { const updated = openNextCycle(month); setData({ ...updated }); setActionError(null); setSelectedMonth(nextMonthLabel(month)); } catch (error) { setActionError(error instanceof Error ? error.message : 'The operation could not be saved.'); } }} onReopen={handleReopenCycle} onOpenCycle={handleOpenCycle} onInitializeCycle={handleInitializeCycle} />
@@ -349,17 +349,6 @@ export const App: React.FC = () => {
         data={data}
         onDataImported={(updated) => setData(updated)}
       />
-
-      {/* Mobile Floating Action Button to Toggle Role or Settings */}
-      {currentRole === 'admin' && (
-        <button
-          onClick={() => setIsRatePolicyOpen(true)}
-          title="Mandatory Maintenance & Utility Rate Settings"
-          className="md:hidden fixed right-4 bottom-20 z-40 w-12 h-12 rounded-full bg-blue-600 text-white shadow-xl flex items-center justify-center text-lg active:scale-95 transition-transform"
-        >
-          ⚙️
-        </button>
-      )}
     </div>
   );
 };
