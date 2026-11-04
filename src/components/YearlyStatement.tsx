@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
-import { computeYearSummary, formatINR, formatLiters } from '../services/calculations';
+import { computeYearSummary, formatINR, formatLiters, computeDynamicStatementBalances } from '../services/calculations';
 import { TrendingUp, Printer, Calendar, Droplet, DollarSign, CheckCircle2, AlertCircle } from './Icons';
 
 interface YearlyStatementProps {
@@ -166,8 +166,9 @@ export const YearlyStatement: React.FC<YearlyStatementProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
               {mInYear.map((m, idx) => {
-                const coll = m.flats.reduce((a, f) => a + (f.paid || 0), 0);
-                const exp = m.expenses.reduce((a, e) => a + (e.amount || 0), 0);
+                const dyn = computeDynamicStatementBalances(m);
+                const coll = dyn.totalReceiptsAndInflows;
+                const exp = dyn.totalPaidExpenses;
                 const net = coll - exp;
 
                 return (
@@ -178,10 +179,10 @@ export const YearlyStatement: React.FC<YearlyStatementProps> = ({
                     <td className={`py-3 px-4 text-right font-bold ${net >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                       {formatINR(net)}
                     </td>
-                    <td className="py-3 px-4 text-right text-slate-600">{formatINR(m.cash_balance)}</td>
-                    <td className="py-3 px-4 text-right text-slate-600">{formatINR(m.bank_balance)}</td>
+                    <td className="py-3 px-4 text-right text-slate-600">{formatINR(dyn.closingCash)}</td>
+                    <td className="py-3 px-4 text-right text-slate-600">{formatINR(dyn.closingBank)}</td>
                     <td className="py-3 px-4 text-right font-black text-purple-900 bg-slate-50/50">
-                      {formatINR(m.total_balance)}
+                      {formatINR(dyn.totalLiquidFunds)}
                     </td>
                   </tr>
                 );

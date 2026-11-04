@@ -170,3 +170,153 @@ export function computeYearSummary(
     categories
   };
 }
+
+export interface DynamicBalances {
+  cashOpening: number;
+  bankOpening: number;
+  cashFlatCollections: number;
+  bankFlatCollections: number;
+  otherCashInflows: number;
+  otherBankInflows: number;
+  totalCashReceived: number; // IA
+  totalBankInflows: number;  // IB
+  totalReceiptsAndInflows: number;
+  paidCashExpenses: number;
+  paidBankExpenses: number;
+  totalPaidExpenses: number; // EA + EB
+  billedExpenses: number;
+  netCashTransfers: number;
+  netBankTransfers: number;
+  closingCash: number;       // IA - EA + Net Transfers
+  closingBank: number;       // IB - EB + Net Transfers
+  totalLiquidFunds: number;  // closingCash + closingBank
+}
+
+export function computeDynamicStatementBalances(m: MaintenanceStatement | undefined | null): DynamicBalances {
+  if (!m) {
+    return {
+      cashOpening: 0,
+      bankOpening: 0,
+      cashFlatCollections: 0,
+      bankFlatCollections: 0,
+      otherCashInflows: 0,
+      otherBankInflows: 0,
+      totalCashReceived: 0,
+      totalBankInflows: 0,
+      totalReceiptsAndInflows: 0,
+      paidCashExpenses: 0,
+      paidBankExpenses: 0,
+      totalPaidExpenses: 0,
+      billedExpenses: 0,
+      netCashTransfers: 0,
+      netBankTransfers: 0,
+      closingCash: 0,
+      closingBank: 0,
+      totalLiquidFunds: 0
+    };
+  }
+
+  const cashOpening = m.cash_opening ?? 0;
+  const bankOpening = m.bank_opening ?? 0;
+
+  // Flat Collections
+  let cashFlatCollections = 0;
+  let bankFlatCollections = 0;
+
+  for (const flat of (m.flats || [])) {
+    if (flat.receipts && flat.receipts.length > 0) {
+      for (const r of flat.receipts) {
+        if (r.mode === 'Cash') {
+          cashFlatCollections += r.amount || 0;
+        } else {
+          bankFlatCollections += r.amount || 0;
+        }
+      }
+    } else if ((flat.paid || 0) > 0) {
+      if (flat.mode === 'Cash') {
+        cashFlatCollections += flat.paid || 0;
+      } else {
+        bankFlatCollections += flat.paid || 0;
+      }
+    }
+  }
+
+  cashFlatCollections = Math.round((cashFlatCollections + Number.EPSILON) * 100) / 100;
+  bankFlatCollections = Math.round((bankFlatCollections + Number.EPSILON) * 100) / 100;
+
+  // Other Inflows
+  let otherCashInflows = 0;
+  let otherBankInflows = 0;
+  for (const item of (m.inflows || [])) {
+    if ((item.type || 'Cash') === 'Cash') {
+      otherCashInflows += item.amount || 0;
+    } else {
+      otherBankInflows += item.amount || 0;
+    }
+  }
+  otherCashInflows = Math.round((otherCashInflows + Number.EPSILON) * 100) / 100;
+  otherBankInflows = Math.round((otherBankInflows + Number.EPSILON) * 100) / 100;
+
+  const totalCashReceived = Math.round((cashFlatCollections + otherCashInflows + Number.EPSILON) * 100) / 100;
+  const totalBankInflows = Math.round((bankFlatCollections + otherBankInflows + Number.EPSILON) * 100) / 100;
+  const totalReceiptsAndInflows = Math.round((totalCashReceived + totalBankInflows + Number.EPSILON) * 100) / 100;
+
+  // Paid vs Billed Expenses
+  let paidCashExpenses = 0;
+  let paidBankExpenses = 0;
+  let billedExpenses = 0;
+
+  for (const exp of (m.expenses || [])) {
+    if (exp.status === 'Billed') {
+      billedExpenses += exp.amount || 0;
+    } else {
+      if ((exp.type || 'Cash') === 'Cash') {
+        paidCashExpenses += exp.amount || 0;
+      } else {
+        paidBankExpenses += exp.amount || 0;
+      }
+    }
+  }
+  paidCashExpenses = Math.round((paidCashExpenses + Number.EPSILON) * 100) / 100;
+  paidBankExpenses = Math.round((paidBankExpenses + Number.EPSILON) * 100) / 100;
+  billedExpenses = Math.round((billedExpenses + Number.EPSILON) * 100) / 100;
+  const totalPaidExpenses = Math.round((paidCashExpenses + paidBankExpenses + Number.EPSILON) * 100) / 100;
+
+  // Transfers
+  let netCashTransfers = 0;
+  let netBankTransfers = 0;
+  for (const t of (m.transfers || [])) {
+    const amt = t.amount || 0;
+    if (t.to === 'Cash') netCashTransfers += amt;
+    if (t.from === 'Cash') netCashTransfers -= amt;
+    if (t.to === 'Bank') netBankTransfers += amt;
+    if (t.from === 'Bank') netBankTransfers -= amt;
+  }
+  netCashTransfers = Math.round((netCashTransfers + Number.EPSILON) * 100) / 100;
+  netBankTransfers = Math.round((netBankTransfers + Number.EPSILON) * 100) / 100;
+
+  const closingCash = Math.round((cashOpening + totalCashReceived - paidCashExpenses + netCashTransfers + Number.EPSILON) * 100) / 100;
+  const closingBank = Math.round((bankOpening + totalBankInflows - paidBankExpenses + netBankTransfers + Number.EPSILON) * 100) / 100;
+  const totalLiquidFunds = Math.round((closingCash + closingBank + Number.EPSILON) * 100) / 100;
+
+  return {
+    cashOpening,
+    bankOpening,
+    cashFlatCollections,
+    bankFlatCollections,
+    otherCashInflows,
+    otherBankInflows,
+    totalCashReceived,
+    totalBankInflows,
+    totalReceiptsAndInflows,
+    paidCashExpenses,
+    paidBankExpenses,
+    totalPaidExpenses,
+    billedExpenses,
+    netCashTransfers,
+    netBankTransfers,
+    closingCash,
+    closingBank,
+    totalLiquidFunds
+  };
+}

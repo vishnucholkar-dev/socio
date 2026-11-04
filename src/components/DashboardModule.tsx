@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ApartmentData, UserRole } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
-import { formatINR, formatLiters } from '../services/calculations';
+import { formatINR, formatLiters, computeDynamicStatementBalances } from '../services/calculations';
 import { Building, Droplet, Receipt, DollarSign, Users, AlertCircle, CheckCircle2, ArrowRight, Phone, TrendingUp } from './Icons';
 
 interface DashboardModuleProps {
@@ -21,6 +21,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
 }) => {
   const currentMaint = data.maintenance_statements.find(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const currentWater = data.water_statements.find(w => sameCalendarMonth(w.sheet_name, selectedMonth));
+  const dynamicMaint = computeDynamicStatementBalances(currentMaint);
 
   // Current Month Specific Metrics
   const totalBilled = currentMaint?.flats.reduce((acc, f) => acc + (f.actual || 0), 0) || 0;
@@ -248,8 +249,8 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
 
           <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between min-w-0 overflow-hidden">
             <span className="text-[9px] sm:text-[10px] font-bold text-purple-800 uppercase tracking-wider truncate block">Current Liquid Funds</span>
-            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-purple-700 mt-1 font-mono tracking-tight truncate block">{formatINR(currentMaint?.total_balance)}</p>
-            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">Cash: {formatINR(currentMaint?.cash_balance)} | Bank: {formatINR(currentMaint?.bank_balance)}</span>
+            <p className="text-sm xs:text-base sm:text-xl lg:text-2xl font-black text-purple-700 mt-1 font-mono tracking-tight truncate block">{formatINR(dynamicMaint.totalLiquidFunds)}</p>
+            <span className="text-[9px] sm:text-[11px] text-slate-400 mt-0.5 truncate block">Cash: {formatINR(dynamicMaint.closingCash)} | Bank: {formatINR(dynamicMaint.closingBank)}</span>
           </div>
         </div>
       </div>

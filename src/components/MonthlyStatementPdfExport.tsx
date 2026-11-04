@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
-import { formatINR } from '../services/calculations';
+import { formatINR, computeDynamicStatementBalances } from '../services/calculations';
 
 interface MonthlyStatementPdfExportProps {
   statement: MaintenanceStatement;
@@ -15,6 +15,8 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
 }) => {
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
+  const dynamic = computeDynamicStatementBalances(statement);
+
   // Compute metrics
   const totalBilled = statement.flats.reduce((sum, f) => sum + (f.actual || 0), 0);
   const totalFlatPaid = statement.flats.reduce((sum, f) => sum + (f.paid || 0), 0);
@@ -26,21 +28,21 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
   // Separate Paid disbursements from Billed unpaid liabilities
   const paidExpenses = statement.expenses.filter(e => e.status !== 'Billed');
   const billedExpenses = statement.expenses.filter(e => e.status === 'Billed');
-  const totalPaidExpenses = paidExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
-  const totalBilledLiabilities = billedExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  const totalPaidExpenses = dynamic.totalPaidExpenses;
+  const totalBilledLiabilities = dynamic.billedExpenses;
 
   const cashInflows = statement.inflows.filter(i => (i.type || 'Cash') === 'Cash');
   const bankInflows = statement.inflows.filter(i => i.type === 'Bank');
 
-  // Dynamic breakdown of actual cash & bank collections and inflows
-  const cashFlatCollections = statement.flats.filter(f => f.mode === 'Cash').reduce((acc, f) => acc + (f.paid || 0), 0);
-  const bankFlatCollections = statement.flats.filter(f => f.mode !== 'Cash' && (f.paid || 0) > 0).reduce((acc, f) => acc + (f.paid || 0), 0);
-  const otherCashInflows = cashInflows.reduce((acc, i) => acc + (i.amount || 0), 0);
-  const otherBankInflows = bankInflows.reduce((acc, i) => acc + (i.amount || 0), 0);
+  // Dynamic breakdown of actual cash & bank collections and inflows direct from records
+  const cashFlatCollections = dynamic.cashFlatCollections;
+  const bankFlatCollections = dynamic.bankFlatCollections;
+  const otherCashInflows = dynamic.otherCashInflows;
+  const otherBankInflows = dynamic.otherBankInflows;
 
-  const totalCashIn = cashFlatCollections + otherCashInflows;
-  const totalBankIn = bankFlatCollections + otherBankInflows;
-  const totalReceiptsAndInflows = totalCashIn + totalBankIn;
+  const totalCashIn = dynamic.totalCashReceived;
+  const totalBankIn = dynamic.totalBankInflows;
+  const totalReceiptsAndInflows = dynamic.totalReceiptsAndInflows;
 
   const sortedFlats = [...statement.flats].sort((a, b) => a.flat - b.flat);
 
@@ -136,6 +138,10 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
       <tr style="background: #eff6ff; font-weight: 700;">
         <td style="padding: 3px 6px; border: 1px solid #cbd5e1; color: #1e40af;">Total Bank Inflows (IB)</td>
         <td style="padding: 3px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #1e40af;">₹${totalBankIn.toLocaleString('en-IN')}</td>
+      </tr>
+      <tr style="background: #f1f5f9; font-weight: 800;">
+        <td style="padding: 3px 6px; border: 1px solid #cbd5e1; color: #0f172a;">Total Available Bank Funds (Opening + IB)</td>
+        <td style="padding: 3px 6px; border: 1px solid #cbd5e1; text-align: right; font-family: monospace; color: #0f172a;">₹${((statement.bank_opening ?? 0) + totalBankIn).toLocaleString('en-IN')}</td>
       </tr>
     `;
 
@@ -337,15 +343,15 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
         <div class="balances-grid">
           <div>
             <div class="b-label">Cash in Hand (IA-EA)</div>
-            <div class="b-val" style="color: ${statement.cash_balance < 0 ? '#e11d48' : '#059669'};">₹${statement.cash_balance.toLocaleString('en-IN')}</div>
+            <div class="b-val" style="color: ${dynamic.closingCash < 0 ? '#e11d48' : '#059669'};">₹${dynamic.closingCash.toLocaleString('en-IN')}</div>
           </div>
           <div style="border-left: 1px solid #cbd5e1; border-right: 1px solid #cbd5e1;">
             <div class="b-label">Bank Balance (IB-EB)</div>
-            <div class="b-val" style="color: #2563eb;">₹${statement.bank_balance.toLocaleString('en-IN')}</div>
+            <div class="b-val" style="color: #2563eb;">₹${dynamic.closingBank.toLocaleString('en-IN')}</div>
           </div>
           <div>
             <div class="b-label">Total Liquid Funds</div>
-            <div class="b-val" style="color: #7c3aed;">₹${statement.total_balance.toLocaleString('en-IN')}</div>
+            <div class="b-val" style="color: #7c3aed;">₹${dynamic.totalLiquidFunds.toLocaleString('en-IN')}</div>
           </div>
         </div>
 
@@ -559,15 +565,15 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
           <div className="text-center p-3">
             <span className="text-xs font-semibold text-slate-500 uppercase">Cash in Hand (IA-EA)</span>
-            <p className="text-2xl font-black text-emerald-600 mt-1">{formatINR(statement.cash_balance)}</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">{formatINR(dynamic.closingCash)}</p>
           </div>
           <div className="text-center p-3 border-y sm:border-y-0 sm:border-x border-slate-200">
             <span className="text-xs font-semibold text-slate-500 uppercase">Bank Balance (IB-EB)</span>
-            <p className="text-2xl font-black text-blue-600 mt-1">{formatINR(statement.bank_balance)}</p>
+            <p className="text-2xl font-black text-blue-600 mt-1">{formatINR(dynamic.closingBank)}</p>
           </div>
           <div className="text-center p-3">
             <span className="text-xs font-semibold text-purple-600 uppercase">Total Liquid Funds</span>
-            <p className="text-2xl font-black text-purple-700 mt-1">{formatINR(statement.total_balance)}</p>
+            <p className="text-2xl font-black text-purple-700 mt-1">{formatINR(dynamic.totalLiquidFunds)}</p>
           </div>
         </div>
 
@@ -646,6 +652,12 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                       <td className="py-1.5 px-2 text-blue-900">Total Bank Inflows (IB)</td>
                       <td className="py-1.5 px-2 text-right font-mono text-blue-900">
                         {formatINR(totalBankIn)}
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-100 font-extrabold border-t border-slate-300">
+                      <td className="py-1.5 px-2 text-slate-800">Total Available Bank Funds (Opening + IB)</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-slate-900">
+                        {formatINR((statement.bank_opening ?? 0) + totalBankIn)}
                       </td>
                     </tr>
                   </tbody>

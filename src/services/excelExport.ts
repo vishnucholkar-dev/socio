@@ -1,4 +1,5 @@
 import { ApartmentData } from '../types/apartment';
+import { computeDynamicStatementBalances } from './calculations';
 
 /**
  * Generates and downloads a clean multi-sheet XML-compliant spreadsheet (.xlsx / Excel) directly in the browser.
@@ -68,22 +69,23 @@ export function exportAnnualExcelClient(data: ApartmentData, targetYear: number)
   const s3Rows: string[] = [];
   s3Rows.push('Month Cycle\tOpening Cash\tOpening Bank\tTotal Billed\tTotal Collections\tOther Inflows\tPaid Outflows\tClosing Cash\tClosing Bank\tTotal Liquid Funds');
   for (const m of maintList) {
+    const dyn = computeDynamicStatementBalances(m);
     const billed = (m.flats || []).reduce((s, f) => s + (f.actual || 0), 0);
-    const collected = (m.flats || []).reduce((s, f) => s + (f.paid || 0), 0);
-    const inflows = (m.inflows || []).reduce((s, i) => s + (i.amount || 0), 0);
-    const outflows = (m.expenses || []).reduce((s, e) => s + (e.status !== 'Billed' ? (e.amount || 0) : 0), 0);
+    const collected = dyn.totalReceiptsAndInflows;
+    const inflows = dyn.otherCashInflows + dyn.otherBankInflows;
+    const outflows = dyn.totalPaidExpenses;
 
     s3Rows.push([
       m.sheet_name,
-      m.cash_opening,
-      m.bank_opening,
+      dyn.cashOpening,
+      dyn.bankOpening,
       billed,
       collected,
       inflows,
       outflows,
-      m.cash_balance,
-      m.bank_balance,
-      m.total_balance
+      dyn.closingCash,
+      dyn.closingBank,
+      dyn.totalLiquidFunds
     ].join('\t'));
   }
 

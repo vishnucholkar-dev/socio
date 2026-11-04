@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, ExpenseItem, UserRole, CycleStatus, InflowItem, BalanceTransfer } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
-import { formatINR } from '../services/calculations';
+import { formatINR, computeDynamicStatementBalances } from '../services/calculations';
 import { DollarSign, Wallet, CreditCard, Plus, Search, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
 
 interface ExpensesModuleProps {
@@ -138,6 +138,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
       </div>
     );
   }
+
+  const dynamicBalances = computeDynamicStatementBalances(currentStatement);
 
   // Filter expenses
   const filteredExpenses = currentStatement.expenses.filter(e => {
@@ -356,7 +358,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                   onClick={() => {
                     setAdjustChannel('Cash');
                     setAdjustType('exact');
-                    setAdjustAmount(String(currentStatement.cash_balance));
+                    setAdjustAmount(String(dynamicBalances.closingCash));
                     setAdjustReason('');
                     setAdjustError(null);
                     setShowAdjustModal(true);
@@ -372,8 +374,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
               </span>
             </div>
           </div>
-          <p className={`text-2xl font-black mt-2 ${currentStatement.cash_balance < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {formatINR(currentStatement.cash_balance)}
+          <p className={`text-2xl font-black mt-2 ${dynamicBalances.closingCash < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            {formatINR(dynamicBalances.closingCash)}
           </p>
           <p className="text-xs text-slate-400 mt-1">Available gate/petty cash</p>
         </div>
@@ -389,7 +391,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                   onClick={() => {
                     setAdjustChannel('Bank');
                     setAdjustType('exact');
-                    setAdjustAmount(String(currentStatement.bank_balance));
+                    setAdjustAmount(String(dynamicBalances.closingBank));
                     setAdjustReason('');
                     setAdjustError(null);
                     setShowAdjustModal(true);
@@ -406,7 +408,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
             </div>
           </div>
           <p className="text-2xl font-black text-blue-600 mt-2">
-            {formatINR(currentStatement.bank_balance)}
+            {formatINR(dynamicBalances.closingBank)}
           </p>
           <p className="text-xs text-slate-400 mt-1">Society savings account</p>
         </div>
@@ -420,7 +422,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
             </span>
           </div>
           <p className="text-2xl font-black text-purple-700 mt-2">
-            {formatINR(currentStatement.total_balance)}
+            {formatINR(dynamicBalances.totalLiquidFunds)}
           </p>
           <p className="text-xs text-slate-400 mt-1">Cash + Bank combined</p>
         </div>
@@ -975,7 +977,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                     type="button"
                     onClick={() => {
                       setAdjustChannel('Bank');
-                      setAdjustAmount(String(currentStatement.bank_balance));
+                      setAdjustAmount(String(dynamicBalances.closingBank));
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
                       adjustChannel === 'Bank' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
@@ -987,7 +989,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
                     type="button"
                     onClick={() => {
                       setAdjustChannel('Cash');
-                      setAdjustAmount(String(currentStatement.cash_balance));
+                      setAdjustAmount(String(dynamicBalances.closingCash));
                     }}
                     className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
                       adjustChannel === 'Cash' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-slate-50 text-slate-700 border-slate-200'
@@ -1062,8 +1064,8 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
               {/* Live Preview Box */}
               {(() => {
                 const num = parseFloat(adjustAmount) || 0;
-                const currentChannelBal = adjustChannel === 'Cash' ? currentStatement.cash_balance : currentStatement.bank_balance;
-                const otherChannelBal = adjustChannel === 'Cash' ? currentStatement.bank_balance : currentStatement.cash_balance;
+                const currentChannelBal = adjustChannel === 'Cash' ? dynamicBalances.closingCash : dynamicBalances.closingBank;
+                const otherChannelBal = adjustChannel === 'Cash' ? dynamicBalances.closingBank : dynamicBalances.closingCash;
                 const targetChannelBal = adjustType === 'exact' ? num : currentChannelBal + num;
                 const targetTotalLiquid = targetChannelBal + otherChannelBal;
 

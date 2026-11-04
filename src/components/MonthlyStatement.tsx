@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
-import { formatINR, formatLiters } from '../services/calculations';
+import { formatINR, formatLiters, computeDynamicStatementBalances } from '../services/calculations';
 import { Printer, Calendar, Wallet, CreditCard, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
 import { MonthlyStatementPdfExport } from './MonthlyStatementPdfExport';
 
@@ -40,26 +40,27 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
     );
   }
 
+  const dynamic = computeDynamicStatementBalances(currentMaint);
   const totalFlatPaid = currentMaint.flats.reduce((acc, f) => acc + (f.paid || 0), 0);
   const totalFlatPending = currentMaint.flats.reduce((acc, f) => acc + (f.pending || 0), 0);
   
-  // Dynamic breakdown of actual cash & bank collections and inflows
-  const cashFlatCollections = currentMaint.flats.filter(f => f.mode === 'Cash').reduce((acc, f) => acc + (f.paid || 0), 0);
-  const bankFlatCollections = currentMaint.flats.filter(f => f.mode !== 'Cash' && (f.paid || 0) > 0).reduce((acc, f) => acc + (f.paid || 0), 0);
-  const otherCashInflows = currentMaint.inflows.filter(i => (i.type || 'Cash') === 'Cash').reduce((acc, i) => acc + (i.amount || 0), 0);
-  const otherBankInflows = currentMaint.inflows.filter(i => i.type === 'Bank').reduce((acc, i) => acc + (i.amount || 0), 0);
+  // Dynamic breakdown of actual cash & bank collections and inflows direct from records
+  const cashFlatCollections = dynamic.cashFlatCollections;
+  const bankFlatCollections = dynamic.bankFlatCollections;
+  const otherCashInflows = dynamic.otherCashInflows;
+  const otherBankInflows = dynamic.otherBankInflows;
 
-  const totalCashReceived = cashFlatCollections + otherCashInflows;
-  const totalBankInflows = bankFlatCollections + otherBankInflows;
-  const totalReceiptsAndInflows = totalCashReceived + totalBankInflows;
+  const totalCashReceived = dynamic.totalCashReceived;
+  const totalBankInflows = dynamic.totalBankInflows;
+  const totalReceiptsAndInflows = dynamic.totalReceiptsAndInflows;
 
   // Separate Paid disbursements from Billed unpaid liabilities
   const paidExpenses = currentMaint.expenses.filter(e => e.status !== 'Billed');
   const billedExpenses = currentMaint.expenses.filter(e => e.status === 'Billed');
   const cashExpenses = paidExpenses.filter(e => (e.type || 'Cash') === 'Cash');
   const bankExpenses = paidExpenses.filter(e => e.type === 'Bank');
-  const totalExpenses = paidExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
-  const totalBilledLiabilities = billedExpenses.reduce((acc, e) => acc + (e.amount || 0), 0);
+  const totalExpenses = dynamic.totalPaidExpenses;
+  const totalBilledLiabilities = dynamic.billedExpenses;
 
   return (
     <div className="space-y-6">
@@ -118,15 +119,15 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
           <div className="text-center p-3">
             <span className="text-xs font-semibold text-slate-500 uppercase">Cash in Hand (IA-EA)</span>
-            <p className="text-2xl font-black text-emerald-600 mt-1">{formatINR(currentMaint.cash_balance)}</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">{formatINR(dynamic.closingCash)}</p>
           </div>
           <div className="text-center p-3 border-y sm:border-y-0 sm:border-x border-slate-200">
             <span className="text-xs font-semibold text-slate-500 uppercase">Bank Balance (IB-EB)</span>
-            <p className="text-2xl font-black text-blue-600 mt-1">{formatINR(currentMaint.bank_balance)}</p>
+            <p className="text-2xl font-black text-blue-600 mt-1">{formatINR(dynamic.closingBank)}</p>
           </div>
           <div className="text-center p-3">
             <span className="text-xs font-semibold text-purple-600 uppercase">Total Liquid Funds</span>
-            <p className="text-2xl font-black text-purple-700 mt-1">{formatINR(currentMaint.total_balance)}</p>
+            <p className="text-2xl font-black text-purple-700 mt-1">{formatINR(dynamic.totalLiquidFunds)}</p>
           </div>
         </div>
 
@@ -213,6 +214,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                       <td className="py-1.5 px-2 text-blue-900">Total Bank Inflows (IB)</td>
                       <td className="py-1.5 px-2 text-right font-mono text-blue-900">
                         {formatINR(totalBankInflows)}
+                      </td>
+                    </tr>
+                    <tr className="bg-slate-100 font-extrabold border-t border-slate-300">
+                      <td className="py-1.5 px-2 text-slate-800">Total Available Bank Funds (Opening + IB)</td>
+                      <td className="py-1.5 px-2 text-right font-mono text-slate-900">
+                        {formatINR((currentMaint.bank_opening ?? 0) + totalBankInflows)}
                       </td>
                     </tr>
                   </tbody>
