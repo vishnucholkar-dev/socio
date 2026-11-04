@@ -170,6 +170,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <TabBtn id="monthly-statement" label="Monthly Statement" icon={<Calendar size={16} />} active={activeTab === 'monthly-statement'} onClick={setActiveTab} />
               <TabBtn id="yearly-statement" label="Yearly Statement" icon={<TrendingUp size={16} />} active={activeTab === 'yearly-statement'} onClick={setActiveTab} />
               <TabBtn id="cycle-management" label="Cycle History" icon={<Calendar size={16} />} active={activeTab === 'cycle-management'} onClick={setActiveTab} />
+              <TabBtn id="security-audit" label="Security Audit & IPs" icon={<Shield size={16} />} active={activeTab === 'security-audit'} onClick={setActiveTab} />
               <TabBtn id="directory" label="Helpful Contacts" icon={<Phone size={16} />} active={activeTab === 'directory'} onClick={setActiveTab} />
             </>
           )}
@@ -302,6 +303,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 💾 Backup/Excel
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => { setActiveTab('security-audit'); setMobileAdminMenuOpen(false); }}
+              className="flex-1 min-w-[90px] py-1.5 px-2 rounded-xl bg-purple-50 text-purple-900 text-[11px] font-bold border border-purple-200 text-center"
+            >
+              🔍 Audit & IPs
+            </button>
           </div>
         )}
       </div>

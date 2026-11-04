@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserRole, AuthSession } from '../types/apartment';
 import { saveSession, verifyAdminPassword, verifyWatchmanPin, verifyFlatPin } from '../services/auth';
+import { trackLoginAttempt } from '../services/audit';
 import { Shield, AlertCircle } from './Icons';
 
 interface LoginModalProps {
@@ -28,9 +29,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
           username: 'Administrator',
           loggedInAt: new Date().toISOString()
         };
+        trackLoginAttempt({ role: 'admin', username: 'Administrator', status: 'SUCCESS' });
         saveSession(session);
         onLoginSuccess(session);
       } else {
+        trackLoginAttempt({ role: 'admin', username: 'Administrator', status: 'FAILED', reason: 'Invalid password' });
         setError('Invalid password. Please check your credentials and try again.');
       }
     } else if (roleTab === 'watchman') {
@@ -40,9 +43,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
           username: 'Building Watchman (Laxman)',
           loggedInAt: new Date().toISOString()
         };
+        trackLoginAttempt({ role: 'watchman', username: 'Building Watchman (Laxman)', status: 'SUCCESS' });
         saveSession(session);
         onLoginSuccess(session);
       } else {
+        trackLoginAttempt({ role: 'watchman', username: 'Building Watchman (Laxman)', status: 'FAILED', reason: 'Invalid Watchman PIN' });
         setError('Invalid Watchman PIN. Please try again.');
       }
     } else {
@@ -60,9 +65,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onLoginSuccess, 
           username: `Flat ${parsedFlat} Owner`,
           loggedInAt: new Date().toISOString()
         };
+        trackLoginAttempt({ role: 'user', flatNumber: parsedFlat, username: `Flat ${parsedFlat} Owner`, status: 'SUCCESS' });
         saveSession(session);
         onLoginSuccess(session);
       } else {
+        trackLoginAttempt({ role: 'user', flatNumber: parsedFlat, username: `Flat ${parsedFlat} Owner`, status: 'FAILED', reason: 'Incorrect flat password' });
         setError(`Invalid password for Flat ${parsedFlat}. Please try again.`);
       }
     }

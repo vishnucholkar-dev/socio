@@ -5,12 +5,14 @@ interface SecurityCredentialsModalProps {
   isOpen: boolean;
   onClose: () => void;
   flatsList: number[];
+  onOpenAuditLogs?: () => void;
 }
 
 export const SecurityCredentialsModal: React.FC<SecurityCredentialsModalProps> = ({
   isOpen,
   onClose,
-  flatsList = []
+  flatsList = [],
+  onOpenAuditLogs
 }) => {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [adminPwdMsg, setAdminPwdMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -192,7 +194,21 @@ export const SecurityCredentialsModal: React.FC<SecurityCredentialsModalProps> =
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+        <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+          {onOpenAuditLogs ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenAuditLogs();
+              }}
+              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold rounded-xl flex items-center space-x-1.5 transition-all shadow-2xs"
+            >
+              <span>🔍</span>
+              <span>View Login Audit Trail & IPs</span>
+            </button>
+          ) : <div></div>}
+
           <button
             type="button"
             onClick={onClose}

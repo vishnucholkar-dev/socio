@@ -41,6 +41,7 @@ import { MonthlyStatement } from './components/MonthlyStatement';
 import { YearlyStatement } from './components/YearlyStatement';
 import { DirectoryModule } from './components/DirectoryModule';
 import { SecurityCredentialsModal } from './components/SecurityCredentialsModal';
+import { SecurityAuditModule } from './components/SecurityAuditModule';
 import { RatePolicyModal } from './components/RatePolicyModal';
 import { BackupAndExportModal } from './components/BackupAndExportModal';
 import { CycleManagement } from './components/CycleManagement';
@@ -338,6 +339,11 @@ export const App: React.FC = () => {
             onDeleteContact={handleDeleteContact}
           />
         )}
+
+        {/* Admin-Only Security Audit & Login Telemetry Portal */}
+        {activeTab === 'security-audit' && currentRole === 'admin' && (
+          <SecurityAuditModule />
+        )}
       </main>
 
       {/* Login Modal */}
@@ -356,6 +362,7 @@ export const App: React.FC = () => {
         isOpen={isSecurityOpen}
         onClose={() => setIsSecurityOpen(false)}
         flatsList={data.flats}
+        onOpenAuditLogs={() => setActiveTab('security-audit')}
       />
 
       {/* 2. Mandatory Maintenance & Common Utility Settings Modal */}
