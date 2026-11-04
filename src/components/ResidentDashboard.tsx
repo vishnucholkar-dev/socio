@@ -3,6 +3,7 @@ import { MaintenanceStatement, WaterStatement } from '../types/apartment';
 import { formatINR, formatLiters, formatINRExact } from '../services/calculations';
 import { sameCalendarMonth } from '../services/storage';
 import { changeFlatPassword } from '../services/auth';
+import { ROCKCLIFF_UPI_QR_DATA_URI } from '../data/qrCodeDataUri';
 import { Receipt, Droplet, CheckCircle2, AlertCircle, TrendingUp, Calendar, Phone, ArrowRight } from './Icons';
 
 interface ResidentDashboardProps {
@@ -94,6 +95,11 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
   );
   const isReadingPending = !hasRecordedReading;
 
+  // QR Code Zoom Modal State
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const UPI_ID = 'MSROCKCLIFFTIRTHAFLATOWNERSWELFAREASSOCIATIONS.eazypay@icici';
+
   // Internal password modal state (backed by props or internal)
   const [internalPwdOpen, setInternalPwdOpen] = useState(false);
   const showPwdModal = isPwdModalOpen || internalPwdOpen;
@@ -130,32 +136,33 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
-            <button
-              onClick={() => {
-                setNewPassword('');
-                setPwdMsg(null);
-                setShowPwdModal(true);
-              }}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
-            >
-              <span>🔐</span>
-              <span>Change Password</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('resident-history')}
-              className="px-4 py-2.5 bg-white text-blue-900 rounded-xl text-xs font-bold shadow-md hover:bg-blue-50 transition-all flex items-center space-x-1.5"
-            >
-              <Receipt size={15} className="text-blue-600" />
-              <span>Lifetime History</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('water-meter')}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 border border-white/20"
-            >
-              <Droplet size={15} />
-              <span>Society Water Table</span>
-            </button>
+          {/* Compact UPI Scan & Pay Card (Click/Touch to Expand) */}
+          <div
+            onClick={() => setShowQrModal(true)}
+            className="bg-white/95 text-slate-900 p-2.5 sm:p-3 rounded-2xl shadow-xl border border-white/60 cursor-pointer hover:bg-white hover:scale-[1.02] active:scale-95 transition-all flex items-center space-x-3 shrink-0 group select-none"
+            title="Touch or click to open full QR Code for payment"
+          >
+            <div className="relative">
+              <img
+                src={ROCKCLIFF_UPI_QR_DATA_URI}
+                alt="Payment QR Code"
+                className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-xl border border-slate-200 bg-white p-0.5 shadow-2xs"
+              />
+              <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 shadow-xs text-[10px]">
+                🔍
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-black tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 block w-fit">
+                Scan & Pay
+              </span>
+              <span className="text-xs font-black text-slate-900 block mt-1 leading-tight">
+                ICICI UPI QR
+              </span>
+              <span className="text-[11px] text-blue-600 font-bold block mt-0.5 group-hover:underline">
+                Tap to Zoom ↗
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -609,6 +616,76 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded UPI Payment QR Code Modal (Fitted for Mobile Screens) */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xs sm:max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center relative animate-in fade-in zoom-in-95">
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold p-1 rounded-full hover:bg-slate-100 transition-all"
+            >
+              ✕
+            </button>
+
+            {/* Header info matching receipt / bank banner */}
+            <div className="pb-3 border-b border-slate-100">
+              <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                Official Society UPI QR
+              </span>
+              <h3 className="text-sm font-black text-slate-900 mt-2 leading-snug uppercase">
+                M/S. ROCKCLIFF TIRTHA FLAT OWNERS WELFARE ASSOCIATIONS
+              </h3>
+              <p className="text-[11px] text-slate-500 font-bold mt-0.5">
+                Scan with any UPI App (GPay, PhonePe, Paytm, BHIM)
+              </p>
+            </div>
+
+            {/* QR Code Image */}
+            <div className="my-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center shadow-inner">
+              <img
+                src={ROCKCLIFF_UPI_QR_DATA_URI}
+                alt="Rockcliff ICICI Payment QR Code"
+                className="w-full max-w-[240px] h-auto object-contain rounded-xl shadow-xs bg-white"
+              />
+            </div>
+
+            {/* UPI ID & Copy Button */}
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-left">
+              <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider block">
+                Official UPI ID:
+              </span>
+              <p className="text-[11px] font-mono font-bold text-slate-900 break-all select-all mt-0.5">
+                {UPI_ID}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(UPI_ID);
+                  setCopiedUpi(true);
+                  setTimeout(() => setCopiedUpi(false), 2500);
+                }}
+                className="w-full mt-2.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all active:scale-95 flex items-center justify-center space-x-1"
+              >
+                <span>{copiedUpi ? '✓ Copied to Clipboard!' : '📋 Copy UPI ID'}</span>
+              </button>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Flat {selectedFlat} Maintenance</span>
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="font-bold text-slate-700 hover:underline"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
