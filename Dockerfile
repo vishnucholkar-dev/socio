@@ -4,6 +4,8 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 COPY . .
+# Ensure apartment_seed.json exists in clean container clones
+RUN node -e "if (!require('node:fs').existsSync('./src/data/apartment_seed.json')) require('node:fs').copyFileSync('./src/data/apartment_seed.template.json', './src/data/apartment_seed.json')"
 RUN pnpm build
 # Copy index.html and static assets into dist for nginx
 RUN cp index.html dist/ 2>/dev/null || true
