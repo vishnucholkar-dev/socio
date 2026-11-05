@@ -5,6 +5,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
+# Copy index.html and static assets into dist for nginx
+RUN cp index.html dist/ 2>/dev/null || true
+RUN cp -r public/* dist/ 2>/dev/null || true
 
 FROM nginx:1.27-alpine AS runtime
 COPY nginx.conf /etc/nginx/conf.d/default.conf
