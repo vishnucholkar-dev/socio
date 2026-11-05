@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, WaterStatement } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
-import { formatINR, formatLiters, computeDynamicStatementBalances } from '../services/calculations';
+import { formatINR, formatLiters, computeDynamicStatementBalances, sortFlatsBySequence } from '../services/calculations';
 import { Printer, Calendar, Wallet, CreditCard, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
 import { MonthlyStatementPdfExport } from './MonthlyStatementPdfExport';
 
@@ -20,6 +20,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
 }) => {
   const [showPdfExport, setShowPdfExport] = useState(false);
   const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid'>('all');
+  const [sortSequence, setSortSequence] = useState<'riser' | 'ascending'>('riser');
   const maintenanceMatches = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const waterMatches = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
   const currentMaint = maintenanceMatches.length === 1 ? maintenanceMatches[0] : undefined;
@@ -316,29 +317,55 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
               </p>
             </div>
 
-            {/* Filter buttons */}
-            <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold no-print">
-              <button
-                type="button"
-                onClick={() => setDuesFilter('all')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
-              >
-                All (32)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDuesFilter('due')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'due' ? 'bg-rose-600 text-white' : 'text-rose-600 hover:bg-rose-50'}`}
-              >
-                Due Only ({currentMaint.flats.filter(f => f.pending > 1).length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDuesFilter('paid')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'paid' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
-              >
-                Paid Only ({currentMaint.flats.filter(f => f.pending <= 1).length})
-              </button>
+            {/* Filter buttons & Sorting toggle */}
+            <div className="flex flex-wrap items-center gap-2 no-print">
+              <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  All (32)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('due')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'due' ? 'bg-rose-600 text-white' : 'text-rose-600 hover:bg-rose-50'}`}
+                >
+                  Due Only ({currentMaint.flats.filter(f => f.pending > 1).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDuesFilter('paid')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'paid' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                >
+                  Paid Only ({currentMaint.flats.filter(f => f.pending <= 1).length})
+                </button>
+              </div>
+
+              {/* Sequence Toggle Pill (Riser vs Ascending) */}
+              <div className="flex items-center space-x-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setSortSequence('riser')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    sortSequence === 'riser' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Plumbing shaft vertical sequence: 101, 201, 301, 401..."
+                >
+                  🏢 Vertical Riser
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortSequence('ascending')}
+                  className={`px-2.5 py-1 rounded-lg transition-all ${
+                    sortSequence === 'ascending' ? 'bg-purple-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                  title="Sequential flat number order: 101, 102, 103..."
+                >
+                  🔢 Flat Ascending
+                </button>
+              </div>
             </div>
           </div>
 
@@ -381,41 +408,65 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
             </div>
           </div>
 
-          {/* 32 Flats Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[...currentMaint.flats]
-              .sort((a, b) => a.flat - b.flat)
-              .filter(f => duesFilter === 'all' ? true : duesFilter === 'due' ? f.pending > 1 : f.pending <= 1)
-              .map((f) => {
-                const isPaid = f.pending <= 1;
-                return (
-                  <div
-                    key={f.flat}
-                    className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                      isPaid
-                        ? 'bg-white border-emerald-200/80'
-                        : 'bg-white border-rose-300 shadow-2xs'
-                    }`}
-                  >
-                    <div>
-                      <span className="font-black text-slate-900 block">Flat {f.flat}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(f.actual)}</span>
-                    </div>
+          {/* 32 Flats Cards Grid (Sorted Vertically in 4 Columns by Riser or Ascending) */}
+          {(() => {
+            const sortedAndFiltered = sortFlatsBySequence(
+              [...currentMaint.flats].filter(f => duesFilter === 'all' ? true : duesFilter === 'due' ? f.pending > 1 : f.pending <= 1),
+              sortSequence
+            );
 
-                    <div className="text-right">
-                      <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        {isPaid ? formatINR(f.paid) : formatINR(f.pending)}
-                      </span>
-                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                        isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {isPaid ? 'Paid' : 'Due'}
-                      </span>
-                    </div>
+            // Group into 4 balanced vertical columns
+            const totalItems = sortedAndFiltered.length;
+            const itemsPerCol = Math.ceil(totalItems / 4);
+            const cols = [
+              sortedAndFiltered.slice(0, itemsPerCol),
+              sortedAndFiltered.slice(itemsPerCol, itemsPerCol * 2),
+              sortedAndFiltered.slice(itemsPerCol * 2, itemsPerCol * 3),
+              sortedAndFiltered.slice(itemsPerCol * 3)
+            ];
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {cols.map((columnFlats, colIdx) => (
+                  <div key={colIdx} className="space-y-2">
+                    {columnFlats.map((f) => {
+                      const isPaid = f.pending <= 1;
+                      const roundedBill = Math.round(f.actual || 0);
+                      const roundedPaid = Math.round(f.paid || 0);
+                      const roundedPending = Math.round(f.pending || 0);
+
+                      return (
+                        <div
+                          key={f.flat}
+                          className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                            isPaid
+                              ? 'bg-white border-emerald-200/80 shadow-2xs'
+                              : 'bg-white border-rose-300 shadow-2xs'
+                          }`}
+                        >
+                          <div>
+                            <span className="font-black text-slate-900 block">Flat {f.flat}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(roundedBill)}</span>
+                          </div>
+
+                          <div className="text-right">
+                            <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                              isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                            }`}>
+                              {isPaid ? 'Paid' : 'Due'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-          </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Association Signatures */}
@@ -439,6 +490,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
         <MonthlyStatementPdfExport
           statement={currentMaint}
           waterStatement={currentWater}
+          sequence={sortSequence}
           onClose={() => setShowPdfExport(false)}
         />
       )}

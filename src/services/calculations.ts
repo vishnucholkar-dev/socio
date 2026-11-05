@@ -21,6 +21,28 @@ export function formatLiters(val: number | undefined | null): string {
   return Number(val).toLocaleString('en-IN') + ' L';
 }
 
+export const RISER_ORDER = [
+  101, 201, 301, 401,
+  102, 202, 302, 402,
+  103, 203, 303, 403,
+  104, 204, 304, 404,
+  105, 205, 305, 405,
+  106, 206, 306, 406,
+  107, 207, 307, 407,
+  108, 208, 308, 408
+];
+
+export function sortFlatsBySequence<T extends { flat: number }>(items: T[], sequence: 'riser' | 'ascending'): T[] {
+  if (sequence === 'riser') {
+    return [...items].sort((a, b) => {
+      const idxA = RISER_ORDER.indexOf(a.flat);
+      const idxB = RISER_ORDER.indexOf(b.flat);
+      return (idxA >= 0 ? idxA : a.flat) - (idxB >= 0 ? idxB : b.flat);
+    });
+  }
+  return [...items].sort((a, b) => a.flat - b.flat);
+}
+
 export interface WaterCalculationInput {
   tankerBill: number;
   electricityBill: number;

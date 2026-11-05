@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MaintenanceStatement, FlatMaintenanceData, UserRole, WaterStatement, CycleStatus, PaymentChannel } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
-import { formatINR } from '../services/calculations';
+import { formatINR, sortFlatsBySequence } from '../services/calculations';
 import { Receipt, CheckCircle2, AlertCircle, Printer, DollarSign, Wallet, CreditCard, Search, ArrowRight } from './Icons';
 
 interface CollectionsModuleProps {
@@ -52,6 +52,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
 
   const [filterFloor, setFilterFloor] = useState<number | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'Paid' | 'Due'>('all');
+  const [sortSequence, setSortSequence] = useState<'riser' | 'ascending'>('riser');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Payment Recording Modal State
@@ -75,15 +76,15 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
     );
   }
 
-  // Filter flats
-  const filteredFlats = currentStatement.flats.filter(f => {
+  // Filter and sort flats (defaults to Vertical Riser)
+  const filteredFlats = sortFlatsBySequence(currentStatement.flats.filter(f => {
     const floor = Math.floor(f.flat / 100);
     if (filterFloor !== 'all' && floor !== filterFloor) return false;
     if (filterStatus === 'Paid' && f.pending > 1) return false;
     if (filterStatus === 'Due' && f.pending <= 1) return false;
     if (searchQuery && !f.flat.toString().includes(searchQuery)) return false;
     return true;
-  });
+  }), sortSequence);
 
   // Calculate totals
   const totalBilled = currentStatement.flats.reduce((acc, f) => acc + (f.actual || 0), 0);
@@ -197,6 +198,30 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
               {fl === 'all' ? 'All Floors' : `${fl}th Floor`}
             </button>
           ))}
+
+          {/* Sequence Toggle Pill (Riser vs Ascending) */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl ml-2">
+            <button
+              type="button"
+              onClick={() => setSortSequence('riser')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                sortSequence === 'riser' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Plumbing shaft sequence: 101, 201, 301, 401..."
+            >
+              🏢 Vertical Riser
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortSequence('ascending')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                sortSequence === 'ascending' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Sequential flat number order: 101, 102, 103..."
+            >
+              🔢 Flat Ascending
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
