@@ -408,62 +408,48 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
             </div>
           </div>
 
-          {/* 32 Flats Cards Grid (Sorted Vertically in 4 Columns by Riser or Ascending) */}
+          {/* 32 Flats Cards Grid (Direct 4-Column Grid: Row 1 = 101,102,103,104 in Ascending OR 101,201,301,401 in Riser) */}
           {(() => {
             const sortedAndFiltered = sortFlatsBySequence(
               [...currentMaint.flats].filter(f => duesFilter === 'all' ? true : duesFilter === 'due' ? f.pending > 1 : f.pending <= 1),
               sortSequence
             );
 
-            // Group into 4 balanced vertical columns
-            const totalItems = sortedAndFiltered.length;
-            const itemsPerCol = Math.ceil(totalItems / 4);
-            const cols = [
-              sortedAndFiltered.slice(0, itemsPerCol),
-              sortedAndFiltered.slice(itemsPerCol, itemsPerCol * 2),
-              sortedAndFiltered.slice(itemsPerCol * 2, itemsPerCol * 3),
-              sortedAndFiltered.slice(itemsPerCol * 3)
-            ];
-
             return (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                {cols.map((columnFlats, colIdx) => (
-                  <div key={colIdx} className="space-y-2">
-                    {columnFlats.map((f) => {
-                      const isPaid = f.pending <= 1;
-                      const roundedBill = Math.round(f.actual || 0);
-                      const roundedPaid = Math.round(f.paid || 0);
-                      const roundedPending = Math.round(f.pending || 0);
+                {sortedAndFiltered.map((f) => {
+                  const isPaid = f.pending <= 1;
+                  const roundedBill = Math.round(f.actual || 0);
+                  const roundedPaid = Math.round(f.paid || 0);
+                  const roundedPending = Math.round(f.pending || 0);
 
-                      return (
-                        <div
-                          key={f.flat}
-                          className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                            isPaid
-                              ? 'bg-white border-emerald-200/80 shadow-2xs'
-                              : 'bg-white border-rose-300 shadow-2xs'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-black text-slate-900 block">Flat {f.flat}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(roundedBill)}</span>
-                          </div>
+                  return (
+                    <div
+                      key={f.flat}
+                      className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                        isPaid
+                          ? 'bg-white border-emerald-200/80 shadow-2xs'
+                          : 'bg-white border-rose-300 shadow-2xs'
+                      }`}
+                    >
+                      <div>
+                        <span className="font-black text-slate-900 block">Flat {f.flat}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(roundedBill)}</span>
+                      </div>
 
-                          <div className="text-right">
-                            <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
-                              {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
-                            </span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                              isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                            }`}>
-                              {isPaid ? 'Paid' : 'Due'}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                      <div className="text-right">
+                        <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                          isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {isPaid ? 'Paid' : 'Due'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}

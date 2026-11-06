@@ -148,43 +148,30 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
       </tr>
     `;
 
-    // Group flats into 4 vertical columns of 8 flats each (flowing down vertically)
-    const itemsPerCol = Math.ceil(sortedFlats.length / 4);
-    const cols = [
-      sortedFlats.slice(0, itemsPerCol),
-      sortedFlats.slice(itemsPerCol, itemsPerCol * 2),
-      sortedFlats.slice(itemsPerCol * 2, itemsPerCol * 3),
-      sortedFlats.slice(itemsPerCol * 3)
-    ];
-
     const flatColumnsHtml = `
-      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
-        ${cols.map(col => `
-          <div style="display: flex; flex-direction: column; gap: 3px;">
-            ${col.map(f => {
-              const isPaid = f.pending <= 1;
-              const roundedBill = Math.round(f.actual || 0);
-              const roundedPaid = Math.round(f.paid || 0);
-              const roundedPending = Math.round(f.pending || 0);
-              return `
-                <div style="border: 1px solid ${isPaid ? '#a7f3d0' : '#fca5a5'}; background: #ffffff; padding: 2.5px 4.5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5pt;">
-                  <div>
-                    <strong style="color: #0f172a; display: block;">Flat ${f.flat}</strong>
-                    <span style="font-family: monospace; color: #64748b; font-size: 5.6pt;">Bill: ₹${roundedBill.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div style="text-align: right;">
-                    <strong style="font-family: monospace; display: block; color: ${isPaid ? '#047857' : '#e11d48'}; font-size: 6.6pt;">
-                      ₹${(isPaid ? roundedPaid : roundedPending).toLocaleString('en-IN')}
-                    </strong>
-                    <span style="font-size: 5.4pt; font-weight: 800; text-transform: uppercase; padding: 0.5px 3.5px; border-radius: 9999px; background: ${isPaid ? '#d1fae5' : '#ffe4e6'}; color: ${isPaid ? '#065f46' : '#9f1239'};">
-                      ${isPaid ? 'Paid' : 'Due'}
-                    </span>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `).join('')}
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.5px;">
+        ${sortedFlats.map(f => {
+          const isPaid = f.pending <= 1;
+          const roundedBill = Math.round(f.actual || 0);
+          const roundedPaid = Math.round(f.paid || 0);
+          const roundedPending = Math.round(f.pending || 0);
+          return `
+            <div style="border: 1px solid ${isPaid ? '#a7f3d0' : '#fca5a5'}; background: #ffffff; padding: 2.5px 4.5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5pt;">
+              <div>
+                <strong style="color: #0f172a; display: block;">Flat ${f.flat}</strong>
+                <span style="font-family: monospace; color: #64748b; font-size: 5.6pt;">Bill: ₹${roundedBill.toLocaleString('en-IN')}</span>
+              </div>
+              <div style="text-align: right;">
+                <strong style="font-family: monospace; display: block; color: ${isPaid ? '#047857' : '#e11d48'}; font-size: 6.6pt;">
+                  ₹${(isPaid ? roundedPaid : roundedPending).toLocaleString('en-IN')}
+                </strong>
+                <span style="font-size: 5.4pt; font-weight: 800; text-transform: uppercase; padding: 0.5px 3.5px; border-radius: 9999px; background: ${isPaid ? '#d1fae5' : '#ffe4e6'}; color: ${isPaid ? '#065f46' : '#9f1239'};">
+                  ${isPaid ? 'Paid' : 'Due'}
+                </span>
+              </div>
+            </div>
+          `;
+        }).join('')}
       </div>
     `;
 
@@ -815,58 +802,42 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
             </div>
           </div>
 
-          {/* 32 Flats Cards Grid (4 Vertical Columns) */}
-          {(() => {
-            const itemsPerCol = Math.ceil(sortedFlats.length / 4);
-            const cols = [
-              sortedFlats.slice(0, itemsPerCol),
-              sortedFlats.slice(itemsPerCol, itemsPerCol * 2),
-              sortedFlats.slice(itemsPerCol * 2, itemsPerCol * 3),
-              sortedFlats.slice(itemsPerCol * 3)
-            ];
+          {/* 32 Flats Cards Grid (Direct 4-Column Grid) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            {sortedFlats.map((f) => {
+              const isPaid = f.pending <= 1;
+              const roundedBill = Math.round(f.actual || 0);
+              const roundedPaid = Math.round(f.paid || 0);
+              const roundedPending = Math.round(f.pending || 0);
 
-            return (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                {cols.map((columnFlats, colIdx) => (
-                  <div key={colIdx} className="space-y-2">
-                    {columnFlats.map((f) => {
-                      const isPaid = f.pending <= 1;
-                      const roundedBill = Math.round(f.actual || 0);
-                      const roundedPaid = Math.round(f.paid || 0);
-                      const roundedPending = Math.round(f.pending || 0);
-
-                      return (
-                        <div
-                          key={f.flat}
-                          className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                            isPaid
-                              ? 'bg-white border-emerald-200/80 shadow-2xs'
-                              : 'bg-white border-rose-300 shadow-2xs'
-                          }`}
-                        >
-                          <div>
-                            <span className="font-black text-slate-900 block">Flat {f.flat}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(roundedBill)}</span>
-                          </div>
-
-                          <div className="text-right">
-                            <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
-                              {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
-                            </span>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                              isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                            }`}>
-                              {isPaid ? 'Paid' : 'Due'}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+              return (
+                <div
+                  key={f.flat}
+                  className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                    isPaid
+                      ? 'bg-white border-emerald-200/80 shadow-2xs'
+                      : 'bg-white border-rose-300 shadow-2xs'
+                  }`}
+                >
+                  <div>
+                    <span className="font-black text-slate-900 block">Flat {f.flat}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">Bill: {formatINR(roundedBill)}</span>
                   </div>
-                ))}
-              </div>
-            );
-          })()}
+
+                  <div className="text-right">
+                    <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
+                      isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {isPaid ? 'Paid' : 'Due'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Committee Signatures Block */}
