@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MaintenanceStatement, ExpenseItem, UserRole, CycleStatus, InflowItem, BalanceTransfer } from '../types/apartment';
+import { MaintenanceStatement, ExpenseItem, UserRole, CycleStatus, InflowItem, BalanceTransfer, StaffLoan, LoanRepayment } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
 import { formatINR, computeDynamicStatementBalances } from '../services/calculations';
 import { DollarSign, Wallet, CreditCard, Plus, Search, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
@@ -8,6 +8,7 @@ interface ExpensesModuleProps {
   currentRole: UserRole;
   selectedMonth: string;
   allMaintenanceStatements: MaintenanceStatement[];
+  staffLoans?: StaffLoan[];
   onAddExpense: (monthSheet: string, expense: ExpenseItem) => boolean;
   onUpdateExpense: (month: string, id: string, expense: ExpenseItem) => boolean;
   onDeleteExpense: (month: string, id: string) => boolean;
@@ -18,6 +19,10 @@ interface ExpensesModuleProps {
   onUpdateTransfer: (month: string, id: string, transfer: Omit<BalanceTransfer, 'id'>) => boolean;
   onDeleteTransfer: (month: string, id: string) => boolean;
   onAdjustBalance?: (month: string, channel: 'Cash' | 'Bank', adjustment: { type: 'delta' | 'exact'; amount: number; reason?: string }) => boolean;
+  onAddStaffLoan?: (loan: Omit<StaffLoan, 'id' | 'repayments' | 'status'>) => boolean;
+  onAddLoanRepayment?: (loanId: string, repayment: Omit<LoanRepayment, 'id'>) => boolean;
+  onDeleteLoanRepayment?: (loanId: string, repaymentId: string) => boolean;
+  onDeleteStaffLoan?: (loanId: string) => boolean;
   cycleStatus?: CycleStatus;
   openCycles?: string[];
   onOpenCycle?: (month: string) => void;
@@ -28,6 +33,7 @@ const PRESET_EXPENSE_CATEGORIES = [
   'Water Tankers',
   'Security & Watchman',
   'Staff Salary (Laxman)',
+  'Staff Loan / Advance',
   'Electricity / Power',
   'Garbage Collection',
   'Lift AMC',
@@ -40,6 +46,7 @@ const PRESET_EXPENSE_CATEGORIES = [
 ];
 
 const PRESET_INFLOW_CATEGORIES = [
+  'Staff Loan Repayment',
   'Vendor Ad Rent (Lift / Gate Displays)',
   'Bank Savings Interest',
   'Scrap & Recyclable Sales',
@@ -71,6 +78,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   currentRole,
   selectedMonth,
   allMaintenanceStatements,
+  staffLoans = [],
   onAddExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -81,6 +89,10 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   onUpdateTransfer,
   onDeleteTransfer,
   onAdjustBalance,
+  onAddStaffLoan,
+  onAddLoanRepayment,
+  onDeleteLoanRepayment,
+  onDeleteStaffLoan,
   cycleStatus = 'legacy-closed',
   openCycles,
   onOpenCycle,
@@ -90,7 +102,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const currentStatement = matchingStatements.length === 1 ? matchingStatements[0] : undefined;
   const canEdit = currentRole === 'admin' && cycleStatus === 'open' && matchingStatements.length === 1;
 
-  const [activeTab, setActiveTab] = useState<'all' | 'Cash' | 'Bank'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'Cash' | 'Bank' | 'loans'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -128,6 +140,24 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
   const [settlingExpense, setSettlingExpense] = useState<ExpenseItem | null>(null);
   const [settleChannel, setSettleChannel] = useState<'Cash' | 'Bank'>('Bank');
   const [settleDate, setSettleDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+
+  // Staff Loan Modals State
+  const [showLoanModal, setShowLoanModal] = useState(false);
+  const [loanBorrower, setLoanBorrower] = useState('Laxman (Watchman)');
+  const [loanDesignation, setLoanDesignation] = useState('Building Watchman');
+  const [loanPrincipal, setLoanPrincipal] = useState<number>(5000);
+  const [loanChannel, setLoanChannel] = useState<'Cash' | 'Bank'>('Cash');
+  const [loanDate, setLoanDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [loanCycle, setLoanCycle] = useState<string>(selectedMonth);
+  const [loanNotes, setLoanNotes] = useState('');
+
+  // Repayment Modal State
+  const [repaymentLoan, setRepaymentLoan] = useState<StaffLoan | null>(null);
+  const [repaymentAmount, setRepaymentAmount] = useState<number>(1000);
+  const [repaymentChannel, setRepaymentChannel] = useState<'Cash' | 'Bank'>('Cash');
+  const [repaymentDate, setRepaymentDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [repaymentCycle, setRepaymentCycle] = useState<string>(selectedMonth);
+  const [repaymentNotes, setRepaymentNotes] = useState('');
 
   if (!currentStatement) {
     return (
@@ -307,6 +337,55 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
     setInflowAmount(0);
     setTransferDescription('');
     setTransferAmount(0);
+  };
+
+  const handleSaveLoan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loanBorrower.trim()) {
+      alert('Please enter borrower name.');
+      return;
+    }
+    if (loanPrincipal <= 0) {
+      alert('Please enter a positive principal amount.');
+      return;
+    }
+    if (onAddStaffLoan) {
+      const ok = onAddStaffLoan({
+        borrower_name: loanBorrower.trim(),
+        designation: loanDesignation.trim(),
+        principal_amount: loanPrincipal,
+        disbursed_channel: loanChannel,
+        disbursed_date: loanDate,
+        disbursed_month_sheet: loanCycle,
+        notes: loanNotes.trim()
+      });
+      if (ok) {
+        setShowLoanModal(false);
+        setLoanNotes('');
+      }
+    }
+  };
+
+  const handleSaveRepayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repaymentLoan) return;
+    if (repaymentAmount <= 0) {
+      alert('Please enter a positive repayment amount.');
+      return;
+    }
+    if (onAddLoanRepayment) {
+      const ok = onAddLoanRepayment(repaymentLoan.id, {
+        amount: repaymentAmount,
+        channel: repaymentChannel,
+        date: repaymentDate,
+        monthSheet: repaymentCycle,
+        notes: repaymentNotes.trim()
+      });
+      if (ok) {
+        setRepaymentLoan(null);
+        setRepaymentNotes('');
+      }
+    }
   };
 
   return (
@@ -495,18 +574,18 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
 
       {/* Filter and Add Expense Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-center justify-between no-print">
-        <div className="flex items-center space-x-1 w-full sm:w-auto">
-          {(['all', 'Cash', 'Bank'] as const).map(tab => (
+        <div className="flex items-center space-x-1 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {(['all', 'Cash', 'Bank', 'loans'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === tab
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              {tab === 'all' ? 'All Expenses' : tab === 'Cash' ? 'Cash Expenses (EA)' : 'Bank Expenses (EB)'}
+              {tab === 'all' ? 'All Expenses' : tab === 'Cash' ? 'Cash Expenses (EA)' : tab === 'Bank' ? 'Bank Expenses (EB)' : '🤝 Staff Loans & Advances'}
             </button>
           ))}
         </div>
@@ -527,6 +606,7 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
             <button onClick={() => openNewEntry('expense')} className="flex items-center space-x-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm"><Plus size={15} /><span>Add Expense</span></button>
             <button onClick={() => openNewEntry('inflow')} className="flex items-center space-x-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm"><Plus size={15} /><span>Add Inflow</span></button>
             <button onClick={() => openNewEntry('transfer')} className="flex items-center space-x-1.5 px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl shadow-sm"><span>⇄</span><span>Transfer</span></button>
+            <button onClick={() => { setLoanCycle(selectedMonth); setShowLoanModal(true); }} className="flex items-center space-x-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-sm"><span>🤝</span><span>Staff Loan</span></button>
           </div>}
         </div>
       </div>
@@ -678,6 +758,172 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
           <tbody className="divide-y divide-slate-100">{!(currentStatement.transfers || []).length ? <tr><td colSpan={canEdit ? 5 : 4} className="py-6 text-center text-slate-400">No transfers recorded.</td></tr> : currentStatement.transfers!.map((transfer, index) => <tr key={transfer.id || `legacy-transfer-${index}`} className="hover:bg-slate-50"><td className="py-3 px-4 font-semibold text-slate-900">{transfer.description}</td><td className="py-3 px-4">{transfer.from} → {transfer.to}</td><td className="py-3 px-4">{transfer.date}</td><td className="py-3 px-4 text-right font-bold text-violet-700">{formatINR(transfer.amount)}</td>{canEdit && <td className="py-3 px-4 text-right whitespace-nowrap"><button onClick={() => openEditTransfer(transfer, index)} className="text-blue-700 font-semibold mr-3">Edit</button><button onClick={() => { if (window.confirm(`Delete transfer “${transfer.description}”?`)) onDeleteTransfer(currentStatement.sheet_name, transfer.id || `legacy-transfer-${index}`); }} className="text-rose-700 font-semibold">Delete</button></td>}</tr>)}</tbody>
         </table></div>
       </div>
+
+      {/* 🤝 Staff Loans & Advances Ledger Section */}
+      {(activeTab === 'all' || activeTab === 'loans') && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/50">
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="p-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm font-bold">🤝</span>
+                <h3 className="font-bold text-slate-900 text-sm">Staff Loans & Advances</h3>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Flexible non-EMI advances disbursed from Cash/Bank with ad-hoc repayments
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">
+                {staffLoans.length} Record{staffLoans.length !== 1 ? 's' : ''}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => { setLoanCycle(selectedMonth); setShowLoanModal(true); }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1"
+                >
+                  <Plus size={14} />
+                  <span>New Loan</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {staffLoans.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No staff loans or advances recorded yet. Click "+ New Loan" to disburse an advance.
+            </div>
+          ) : (
+            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {staffLoans.map((loan) => {
+                const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+                const remainingBal = Math.max(0, loan.principal_amount - totalRepaid);
+                const pct = Math.min(100, Math.round((totalRepaid / Math.max(1, loan.principal_amount)) * 100));
+
+                return (
+                  <div key={loan.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-sm font-black text-slate-900 block">{loan.borrower_name}</span>
+                        <span className="text-[11px] font-bold text-slate-400 block">
+                          {loan.designation || 'Staff'} • Disbursed {loan.disbursed_date} via {loan.disbursed_channel}
+                        </span>
+                        {loan.notes && (
+                          <span className="text-[10px] text-slate-500 italic block mt-0.5">
+                            Note: {loan.notes}
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                        remainingBal === 0 ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {remainingBal === 0 ? '✓ Settled' : 'Active Loan'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-2.5 bg-white rounded-xl text-center border border-slate-200">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Loan</span>
+                        <span className="text-xs font-black font-mono text-slate-800">{formatINR(loan.principal_amount)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Repaid</span>
+                        <span className="text-xs font-black font-mono text-emerald-700">{formatINR(totalRepaid)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-rose-600 block">Remaining</span>
+                        <span className={`text-xs font-black font-mono ${remainingBal > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                          {formatINR(remainingBal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                        <span>Recovery Progress</span>
+                        <span>{pct}% ({formatINR(totalRepaid)} / {formatINR(loan.principal_amount)})</span>
+                      </div>
+                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                      {canEdit && remainingBal > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRepaymentLoan(loan);
+                            setRepaymentAmount(Math.min(1000, remainingBal));
+                            setRepaymentCycle(selectedMonth);
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center space-x-1"
+                        >
+                          <span>+</span>
+                          <span>Record Repayment</span>
+                        </button>
+                      ) : <span className="text-xs font-bold text-emerald-700">✓ Loan Settled</span>}
+
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Delete loan for ${loan.borrower_name}?`)) {
+                              onDeleteStaffLoan?.(loan.id);
+                            }
+                          }}
+                          className="text-xs font-bold text-slate-400 hover:text-rose-600"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Repayments History */}
+                    {(loan.repayments || []).length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Repayment History ({loan.repayments.length}):
+                        </span>
+                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                          {loan.repayments.map((r) => (
+                            <div key={r.id} className="flex items-center justify-between p-1.5 bg-white rounded-lg border border-slate-100 text-[11px]">
+                              <div>
+                                <span className="font-bold text-slate-800">{r.date}</span>
+                                <span className="text-[10px] text-slate-400 ml-1.5">via {r.channel} ({r.monthSheet})</span>
+                                {r.notes && <span className="text-[10px] text-slate-500 italic block">{r.notes}</span>}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <span className="font-mono font-bold text-emerald-700">+{formatINR(r.amount)}</span>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`Revert repayment of ${formatINR(r.amount)} on ${r.date}?`)) {
+                                        onDeleteLoanRepayment?.(loan.id, r.id);
+                                      }
+                                    }}
+                                    className="text-rose-500 hover:text-rose-700 font-bold text-xs"
+                                    title="Delete repayment"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Expense Modal */}
       {showAddModal && (
@@ -1227,6 +1473,323 @@ export const ExpensesModule: React.FC<ExpensesModuleProps> = ({
           </div>
         </div>
       )}
+
+      {/* Disburse Staff Loan Modal */}
+      {showLoanModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 bg-amber-100 text-amber-800 rounded-xl font-bold">🤝</span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Disburse Staff Loan / Advance</h3>
+                  <p className="text-xs text-slate-500">Non-EMI staff advance disbursed from society funds</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLoanModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLoan} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                  Borrower Staff Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={loanBorrower}
+                  onChange={(e) => setLoanBorrower(e.target.value)}
+                  placeholder="e.g. Laxman (Watchman)"
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Role / Designation
+                </label>
+                <input
+                  type="text"
+                  value={loanDesignation}
+                  onChange={(e) => setLoanDesignation(e.target.value)}
+                  placeholder="e.g. Building Watchman"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                    Loan Amount (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={loanPrincipal || ''}
+                    onChange={(e) => setLoanPrincipal(Number(e.target.value))}
+                    required
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Disbursal Date
+                  </label>
+                  <input
+                    type="date"
+                    value={loanDate}
+                    onChange={(e) => setLoanDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Channel: Cash vs Bank */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                  Disburse From Account: <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLoanChannel('Cash')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                      loanChannel === 'Cash'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-2xs'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Wallet size={15} />
+                    <span>Cash in Hand</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLoanChannel('Bank')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                      loanChannel === 'Bank'
+                        ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-2xs'
+                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CreditCard size={15} />
+                    <span>Bank Balance</span>
+                  </button>
+                </div>
+                <span className="text-[10px] text-slate-400 mt-1 block">
+                  Deducts {formatINR(loanPrincipal)} immediately from {loanChannel}.
+                </span>
+              </div>
+
+              {openCycles && openCycles.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Disbursal Billing Month
+                  </label>
+                  <select
+                    value={loanCycle}
+                    onChange={(e) => setLoanCycle(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 bg-slate-50"
+                  >
+                    {openCycles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Purpose / Notes
+                </label>
+                <input
+                  type="text"
+                  value={loanNotes}
+                  onChange={(e) => setLoanNotes(e.target.value)}
+                  placeholder="e.g. Emergency family medical advance"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLoanModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                >
+                  Disburse Loan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record Loan Repayment Modal */}
+      {repaymentLoan && (() => {
+        const totalRepaid = (repaymentLoan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+        const remainingBal = Math.max(0, repaymentLoan.principal_amount - totalRepaid);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center space-x-2">
+                  <span className="p-2 bg-emerald-100 text-emerald-800 rounded-xl font-bold">📥</span>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Record Loan Repayment</h3>
+                    <p className="text-xs text-slate-500">Ad-hoc staff loan recovery into society funds</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setRepaymentLoan(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold text-lg p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRepayment} className="mt-4 space-y-4">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Borrower</span>
+                      <span className="text-sm font-black text-slate-900 block">{repaymentLoan.borrower_name}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-rose-600 uppercase font-bold block">Remaining Balance</span>
+                      <span className="text-sm font-black font-mono text-rose-600 block">{formatINR(remainingBal)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                      Repay Amount (₹) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={repaymentAmount || ''}
+                      onChange={(e) => setRepaymentAmount(Number(e.target.value))}
+                      required
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Repayment Date
+                    </label>
+                    <input
+                      type="date"
+                      value={repaymentDate}
+                      onChange={(e) => setRepaymentDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Repayment Channel: Cash vs Bank */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                    Deposit Inflow Into: <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRepaymentChannel('Cash')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                        repaymentChannel === 'Cash'
+                          ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-2xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Wallet size={15} />
+                      <span>Cash in Hand (IA)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRepaymentChannel('Bank')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center space-x-1.5 transition-all ${
+                        repaymentChannel === 'Bank'
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-2xs'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <CreditCard size={15} />
+                      <span>Bank Inflows (IB)</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Adds {formatINR(repaymentAmount)} directly into society {repaymentChannel} balance.
+                  </span>
+                </div>
+
+                {openCycles && openCycles.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Target Billing Cycle
+                    </label>
+                    <select
+                      value={repaymentCycle}
+                      onChange={(e) => setRepaymentCycle(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500 bg-slate-50"
+                    >
+                      {openCycles.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Notes / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={repaymentNotes}
+                    onChange={(e) => setRepaymentNotes(e.target.value)}
+                    placeholder="e.g. Monthly salary deduction / cash repayment"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setRepaymentLoan(null)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all"
+                  >
+                    Record Repayment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

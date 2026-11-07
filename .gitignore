@@ -20,6 +20,7 @@ src/data/apartment_seed.json
 src/data/apartment_seed.live.json
 src/data/default_contacts.live.ts
 apartment_data.js
+data/backups/
 exports/
 *.zip
 *.tar.gz

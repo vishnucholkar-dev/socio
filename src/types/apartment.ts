@@ -76,6 +76,30 @@ export interface InflowItem {
   date?: string;
 }
 
+export interface LoanRepayment {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  channel: 'Cash' | 'Bank';
+  monthSheet: string; // Target billing cycle, e.g. "October 2026"
+  notes?: string;
+  inflow_id?: string; // Linked statement inflow
+}
+
+export interface StaffLoan {
+  id: string;
+  borrower_name: string; // e.g. "Laxman (Watchman)"
+  designation?: string; // e.g. "Building Watchman"
+  principal_amount: number; // e.g. 10000
+  disbursed_date: string; // YYYY-MM-DD
+  disbursed_channel: 'Cash' | 'Bank';
+  disbursed_month_sheet: string; // e.g. "October 2026"
+  expense_id?: string; // Linked statement expense
+  notes?: string;
+  status: 'Active' | 'Settled';
+  repayments: LoanRepayment[];
+}
+
 export interface AuthSession {
   role: UserRole;
   flatNumber?: number;
@@ -99,7 +123,7 @@ export interface CycleState {
 export interface CycleAuditEvent {
   id: string;
   month: string;
-  action: 'opened' | 'closed' | 'reopened' | 'legacy.initialized' | 'expense.created' | 'expense.updated' | 'expense.deleted' | 'inflow.created' | 'inflow.updated' | 'inflow.deleted' | 'transfer.created' | 'transfer.updated' | 'transfer.deleted' | 'payment.updated' | 'water.updated' | 'contact.saved' | 'contact.deleted' | 'config.created' | 'balance.adjusted';
+  action: 'opened' | 'closed' | 'reopened' | 'legacy.initialized' | 'expense.created' | 'expense.updated' | 'expense.deleted' | 'inflow.created' | 'inflow.updated' | 'inflow.deleted' | 'transfer.created' | 'transfer.updated' | 'transfer.deleted' | 'payment.updated' | 'water.updated' | 'contact.saved' | 'contact.deleted' | 'config.created' | 'balance.adjusted' | 'loan.created' | 'loan.repayment' | 'loan.deleted' | 'loan.repayment.deleted';
   occurred_at: string;
   actor: string;
   reason?: string;
@@ -167,6 +191,7 @@ export interface ApartmentData {
   cycles: Record<string, CycleState>;
   contacts: DirectoryContact[];
   billing_config_history: BillingConfigEntry[];
+  staff_loans?: StaffLoan[];
   cycle_audit?: CycleAuditEvent[];
   extracted_at: string;
 }

@@ -577,6 +577,77 @@ runTest('Flat owners can change password and admin can reset flat PIN to default
   auth.changeAdminPassword('admin'); // restore default
 });
 
+// 19. STAFF LOANS & ADVANCES WITH CASH/BANK REPAYMENTS
+runTest('Staff loan disbursal and ad-hoc cash/bank repayments correctly update loan and account balances', () => {
+  const data = storage.getApartmentData();
+  const octMaint = data.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const initialCash = octMaint.cash_balance;
+  const initialBank = octMaint.bank_balance;
+
+  // 1. Disburse a new staff loan to Watchman Laxman of ₹5,000 from Cash
+  const withLoan = storage.addStaffLoan({
+    borrower_name: 'Laxman (Building Watchman)',
+    designation: 'Watchman',
+    principal_amount: 5000,
+    disbursed_channel: 'Cash',
+    disbursed_date: '2026-10-10',
+    disbursed_month_sheet: 'October 2026',
+    notes: 'Festival emergency advance'
+  });
+
+  const createdLoan = withLoan.staff_loans.find(l => l.borrower_name.includes('Laxman (Building Watchman)'));
+  assert(createdLoan, 'Staff loan record should exist');
+  assert.strictEqual(createdLoan.principal_amount, 5000, 'Principal amount must be 5000');
+  assert.strictEqual(createdLoan.status, 'Active', 'Loan should be active');
+
+  const afterLoanMaint = withLoan.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(afterLoanMaint.cash_balance, initialCash - 5000, 'Cash balance should decrease by 5000 disbursal');
+
+  // 2. Watchman repays ₹1,500 in Cash
+  const withCashRepay = storage.addLoanRepayment(createdLoan.id, {
+    amount: 1500,
+    channel: 'Cash',
+    date: '2026-10-20',
+    monthSheet: 'October 2026',
+    notes: 'First cash installment'
+  });
+
+  const updatedLoan1 = withCashRepay.staff_loans.find(l => l.id === createdLoan.id);
+  const totalRepaid1 = updatedLoan1.repayments.reduce((sum, r) => sum + r.amount, 0);
+  assert.strictEqual(totalRepaid1, 1500, 'Repaid should be 1500');
+  assert.strictEqual(updatedLoan1.principal_amount - totalRepaid1, 3500, 'Remaining balance should be 3500');
+
+  const afterCashRepayMaint = withCashRepay.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(afterCashRepayMaint.cash_balance, initialCash - 5000 + 1500, 'Cash balance should increase by 1500');
+
+  // 3. Watchman repays ₹3,500 via Bank transfer (settling in full)
+  const withBankRepay = storage.addLoanRepayment(createdLoan.id, {
+    amount: 3500,
+    channel: 'Bank',
+    date: '2026-10-28',
+    monthSheet: 'October 2026',
+    notes: 'Final bank transfer'
+  });
+
+  const updatedLoan2 = withBankRepay.staff_loans.find(l => l.id === createdLoan.id);
+  const totalRepaid2 = updatedLoan2.repayments.reduce((sum, r) => sum + r.amount, 0);
+  assert.strictEqual(totalRepaid2, 5000, 'Total repaid should equal 5000 principal');
+  assert.strictEqual(updatedLoan2.status, 'Settled', 'Loan status should automatically update to Settled');
+
+  const afterBankRepayMaint = withBankRepay.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(afterBankRepayMaint.bank_balance, initialBank + 3500, 'Bank balance should increase by 3500 repayment');
+
+  // 4. Reverting the ₹3,500 repayment restores balance and reopens loan status to Active
+  const lastRepay = updatedLoan2.repayments.find(r => r.amount === 3500);
+  const withReverted = storage.deleteLoanRepayment(createdLoan.id, lastRepay.id);
+  const updatedLoan3 = withReverted.staff_loans.find(l => l.id === createdLoan.id);
+  assert.strictEqual(updatedLoan3.status, 'Active', 'Loan status should revert to Active');
+  assert.strictEqual(updatedLoan3.repayments.length, 1, 'Only 1 repayment should remain');
+
+  const afterRevertedMaint = withReverted.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  assert.strictEqual(afterRevertedMaint.bank_balance, initialBank, 'Bank balance restored upon reverting repayment');
+});
+
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);
 if (failedCount > 0) {
   process.exit(1);

@@ -1,6 +1,7 @@
 import type {
   ApartmentData, BalanceTransfer, BillingConfigEntry, CycleAuditEvent, CycleState,
-  DirectoryContact, ExpenseItem, InflowItem, MaintenanceStatement, PaymentChannel, PaymentMode, WaterStatement
+  DirectoryContact, ExpenseItem, InflowItem, MaintenanceStatement, PaymentChannel, PaymentMode, WaterStatement,
+  StaffLoan, LoanRepayment
 } from '../types/apartment';
 import { calculateWaterBilling } from './calculations';
 import seedData from '../data/apartment_seed.json';
@@ -77,6 +78,48 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
   if (!Array.isArray(data.contacts)) { data.contacts = DEFAULT_CONTACTS; changed = true; }
   if (!Array.isArray(data.maintenance_statements)) { data.maintenance_statements = []; changed = true; }
   if (!Array.isArray(data.water_statements)) { data.water_statements = []; changed = true; }
+  if (!Array.isArray(data.staff_loans)) {
+    data.staff_loans = [
+      {
+        id: 'loan_laxman_watchman',
+        borrower_name: 'Laxman (Watchman)',
+        designation: 'Building Watchman',
+        principal_amount: 10000,
+        disbursed_date: '2026-07-15',
+        disbursed_channel: 'Cash',
+        disbursed_month_sheet: 'July 2026',
+        notes: 'Personal emergency staff advance',
+        status: 'Active',
+        repayments: [
+          {
+            id: 'repay_jul_2026',
+            amount: 1500,
+            date: '2026-07-31',
+            channel: 'Cash',
+            monthSheet: 'July 2026',
+            notes: 'Monthly advance recovery'
+          },
+          {
+            id: 'repay_aug_2026',
+            amount: 1500,
+            date: '2026-08-31',
+            channel: 'Cash',
+            monthSheet: 'August 2026',
+            notes: 'Monthly advance recovery'
+          },
+          {
+            id: 'repay_sep_2026',
+            amount: 1500,
+            date: '2026-09-30',
+            channel: 'Cash',
+            monthSheet: 'September 2026',
+            notes: 'Monthly advance recovery'
+          }
+        ]
+      }
+    ];
+    changed = true;
+  }
   // Empty arrays are intentional user data (e.g. all contacts deleted), never replace them with defaults.
 
   const labels = Array.from(new Set([
@@ -1427,4 +1470,224 @@ export function importApartmentDataBackup(jsonString: string): ApartmentData {
   const normalized = normalizeData(parsed);
   persist(normalized.data);
   return normalized.data;
+}
+
+// ============================================================================
+// STAFF LOAN / ADVANCE MANAGEMENT
+// ============================================================================
+
+export function addStaffLoan(loan: Omit<StaffLoan, 'id' | 'repayments' | 'status'>): ApartmentData {
+  const data = getApartmentData();
+  if (!loan.borrower_name || !loan.borrower_name.trim()) {
+    throw new Error('Borrower name is required.');
+  }
+  if (!Number.isFinite(loan.principal_amount) || loan.principal_amount <= 0) {
+    throw new Error('A positive loan principal amount is required.');
+  }
+  if (loan.disbursed_channel !== 'Cash' && loan.disbursed_channel !== 'Bank') {
+    throw new Error('Disbursal channel must be Cash or Bank.');
+  }
+
+  const loanId = makeId('loan');
+  let expenseId: string | undefined = undefined;
+
+  // If the disbursal month cycle is open, record an immediate expense and deduct Cash/Bank
+  if (data.cycles[loan.disbursed_month_sheet]?.status === 'open') {
+    const m = getMaintenance(data, loan.disbursed_month_sheet);
+    expenseId = makeId('exp_loan');
+    const createdExpense: ExpenseItem = {
+      id: expenseId,
+      description: `Staff Loan Disbursed - ${loan.borrower_name.trim()}`,
+      category: 'Staff Loan / Advance',
+      amount: money(loan.principal_amount),
+      type: loan.disbursed_channel,
+      status: 'Paid',
+      date: loan.disbursed_date || now().split('T')[0],
+      paid_date: loan.disbursed_date || now().split('T')[0]
+    };
+    m.expenses.push(createdExpense);
+    changeBalance(m, loan.disbursed_channel, 0, createdExpense.amount);
+    audit(data, {
+      month: loan.disbursed_month_sheet,
+      action: 'expense.created',
+      record_id: expenseId,
+      after: { ...createdExpense }
+    });
+  }
+
+  const newLoan: StaffLoan = {
+    id: loanId,
+    borrower_name: loan.borrower_name.trim(),
+    designation: loan.designation?.trim() || 'Building Staff',
+    principal_amount: money(loan.principal_amount),
+    disbursed_date: loan.disbursed_date || now().split('T')[0],
+    disbursed_channel: loan.disbursed_channel,
+    disbursed_month_sheet: loan.disbursed_month_sheet,
+    notes: loan.notes?.trim() || '',
+    expense_id: expenseId,
+    status: 'Active',
+    repayments: []
+  };
+
+  if (!Array.isArray(data.staff_loans)) {
+    data.staff_loans = [];
+  }
+  data.staff_loans.push(newLoan);
+
+  audit(data, {
+    month: loan.disbursed_month_sheet,
+    action: 'loan.created',
+    record_id: loanId,
+    after: { ...newLoan }
+  });
+
+  persist(data);
+  return data;
+}
+
+export function addLoanRepayment(loanId: string, repayment: Omit<LoanRepayment, 'id'>): ApartmentData {
+  const data = getApartmentData();
+  assertCycleOpen(data, repayment.monthSheet);
+
+  if (!Number.isFinite(repayment.amount) || repayment.amount <= 0) {
+    throw new Error('A positive repayment amount is required.');
+  }
+  if (repayment.channel !== 'Cash' && repayment.channel !== 'Bank') {
+    throw new Error('Repayment channel must be Cash or Bank.');
+  }
+
+  const loan = (data.staff_loans || []).find(l => l.id === loanId);
+  if (!loan) {
+    throw new Error('Loan record not found.');
+  }
+
+  const inflowId = makeId('in_repay');
+  const m = getMaintenance(data, repayment.monthSheet);
+
+  // Record linked Inflow in the target statement
+  const createdInflow: InflowItem = {
+    id: inflowId,
+    description: `Staff Loan Repayment - ${loan.borrower_name}`,
+    category: 'Staff Loan Repayment',
+    amount: money(repayment.amount),
+    type: repayment.channel,
+    date: repayment.date || now().split('T')[0]
+  };
+  m.inflows.push(createdInflow);
+  changeBalance(m, repayment.channel, createdInflow.amount, 0);
+
+  // Record repayment in the loan
+  const repaymentRecord: LoanRepayment = {
+    id: makeId('repay'),
+    amount: money(repayment.amount),
+    date: repayment.date || now().split('T')[0],
+    channel: repayment.channel,
+    monthSheet: repayment.monthSheet,
+    notes: repayment.notes?.trim() || '',
+    inflow_id: inflowId
+  };
+  loan.repayments.push(repaymentRecord);
+
+  // Check if fully repaid
+  const totalRepaid = loan.repayments.reduce((sum, r) => sum + r.amount, 0);
+  loan.status = totalRepaid >= loan.principal_amount ? 'Settled' : 'Active';
+
+  audit(data, {
+    month: repayment.monthSheet,
+    action: 'loan.repayment',
+    record_id: repaymentRecord.id,
+    after: { ...repaymentRecord, totalRepaid, loanBalance: Math.max(0, loan.principal_amount - totalRepaid) }
+  });
+
+  persist(data);
+  return data;
+}
+
+export function deleteLoanRepayment(loanId: string, repaymentId: string): ApartmentData {
+  const data = getApartmentData();
+  const loan = (data.staff_loans || []).find(l => l.id === loanId);
+  if (!loan) throw new Error('Loan record not found.');
+
+  const rIndex = loan.repayments.findIndex(r => r.id === repaymentId);
+  if (rIndex < 0) throw new Error('Repayment record not found.');
+
+  const r = loan.repayments[rIndex];
+  assertCycleOpen(data, r.monthSheet);
+
+  // Revert linked Inflow from maintenance statement
+  const m = getMaintenance(data, r.monthSheet);
+  const inIndex = m.inflows.findIndex(i => i.id === r.inflow_id || (i.description.includes(loan.borrower_name) && i.amount === r.amount));
+  if (inIndex >= 0) {
+    const removedInflow = m.inflows[inIndex];
+    m.inflows.splice(inIndex, 1);
+    changeBalance(m, removedInflow.type || 'Cash', -removedInflow.amount, 0);
+  }
+
+  loan.repayments.splice(rIndex, 1);
+  const totalRepaid = loan.repayments.reduce((sum, item) => sum + item.amount, 0);
+  loan.status = totalRepaid >= loan.principal_amount ? 'Settled' : 'Active';
+
+  audit(data, {
+    month: r.monthSheet,
+    action: 'loan.repayment.deleted',
+    record_id: repaymentId,
+    before: { ...r }
+  });
+
+  persist(data);
+  return data;
+}
+
+export function deleteStaffLoan(loanId: string): ApartmentData {
+  const data = getApartmentData();
+  const loanIndex = (data.staff_loans || []).findIndex(l => l.id === loanId);
+  if (loanIndex < 0) throw new Error('Loan record not found.');
+
+  const loan = data.staff_loans![loanIndex];
+
+  // If loan disbursal expense was in an open cycle, clean it up
+  if (loan.expense_id && data.cycles[loan.disbursed_month_sheet]?.status === 'open') {
+    try {
+      const m = getMaintenance(data, loan.disbursed_month_sheet);
+      const expIdx = m.expenses.findIndex(e => e.id === loan.expense_id);
+      if (expIdx >= 0) {
+        const removedExp = m.expenses[expIdx];
+        m.expenses.splice(expIdx, 1);
+        if (removedExp.status !== 'Billed') {
+          changeBalance(m, removedExp.type || 'Cash', 0, -removedExp.amount);
+        }
+      }
+    } catch {
+      // Ignored if cycle was closed
+    }
+  }
+
+  // Remove linked inflows in open cycles
+  for (const r of loan.repayments) {
+    if (r.inflow_id && data.cycles[r.monthSheet]?.status === 'open') {
+      try {
+        const m = getMaintenance(data, r.monthSheet);
+        const inIdx = m.inflows.findIndex(i => i.id === r.inflow_id);
+        if (inIdx >= 0) {
+          const removedIn = m.inflows[inIdx];
+          m.inflows.splice(inIdx, 1);
+          changeBalance(m, removedIn.type || 'Cash', -removedIn.amount, 0);
+        }
+      } catch {
+        // Ignored
+      }
+    }
+  }
+
+  data.staff_loans!.splice(loanIndex, 1);
+
+  audit(data, {
+    month: loan.disbursed_month_sheet,
+    action: 'loan.deleted',
+    record_id: loanId,
+    before: { ...loan }
+  });
+
+  persist(data);
+  return data;
 }

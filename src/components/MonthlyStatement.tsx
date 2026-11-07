@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MaintenanceStatement, WaterStatement } from '../types/apartment';
+import { MaintenanceStatement, WaterStatement, StaffLoan } from '../types/apartment';
 import { sameCalendarMonth } from '../services/storage';
 import { formatINR, formatLiters, computeDynamicStatementBalances, sortFlatsBySequence } from '../services/calculations';
 import { Printer, Calendar, Wallet, CreditCard, AlertCircle, CheckCircle2, TrendingUp } from './Icons';
@@ -9,6 +9,7 @@ interface MonthlyStatementProps {
   selectedMonth: string;
   allMaintenanceStatements: MaintenanceStatement[];
   allWaterStatements: WaterStatement[];
+  staffLoans?: StaffLoan[];
   onSelectMonth: (month: string) => void;
 }
 
@@ -16,6 +17,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   selectedMonth,
   allMaintenanceStatements,
   allWaterStatements,
+  staffLoans = [],
   onSelectMonth
 }) => {
   const [showPdfExport, setShowPdfExport] = useState(false);
@@ -62,6 +64,13 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   const bankExpenses = paidExpenses.filter(e => e.type === 'Bank');
   const totalExpenses = dynamic.totalPaidExpenses;
   const totalBilledLiabilities = dynamic.billedExpenses;
+
+  const relevantLoans = (staffLoans || []).filter(loan => {
+    if (loan.status === 'Active') return true;
+    const hasMonthRepayment = (loan.repayments || []).some(r => sameCalendarMonth(r.monthSheet, currentMaint.sheet_name));
+    const wasDisbursedThisMonth = sameCalendarMonth(loan.disbursed_month_sheet, currentMaint.sheet_name);
+    return hasMonthRepayment || wasDisbursedThisMonth;
+  });
 
   return (
     <div className="space-y-6">
@@ -304,6 +313,103 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           </div>
         </div>
 
+        {/* Staff Loan & Advance Ledger (Track Watchman / Staff Advances) */}
+        {relevantLoans.length > 0 && (
+          <div className="p-5 rounded-3xl bg-blue-50/40 border border-blue-200">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-blue-200">
+              <div className="flex items-center space-x-2">
+                <span className="p-2 bg-blue-100 text-blue-800 rounded-xl font-bold text-sm">🤝</span>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                    Staff Loan & Advance Ledger
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Active staff hand-loans and ad-hoc repayment tracking for society operations
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 bg-white border border-blue-200 text-blue-900 rounded-full text-xs font-bold font-mono">
+                {relevantLoans.length} Staff Loan Account{relevantLoans.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {relevantLoans.map((loan) => {
+                const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+                const remainingBal = Math.max(0, loan.principal_amount - totalRepaid);
+                const pct = Math.min(100, Math.round((totalRepaid / Math.max(1, loan.principal_amount)) * 100));
+                const monthRepayments = (loan.repayments || []).filter(r => sameCalendarMonth(r.monthSheet, currentMaint.sheet_name));
+                const monthRepaidTotal = monthRepayments.reduce((sum, r) => sum + r.amount, 0);
+
+                return (
+                  <div key={loan.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-sm font-black text-slate-900 block">{loan.borrower_name}</span>
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          {loan.designation || 'Staff'} • Disbursed {loan.disbursed_date} via {loan.disbursed_channel}
+                        </span>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        remainingBal === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {remainingBal === 0 ? '✓ Settled' : 'Active Loan'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 rounded-xl text-center">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Loan</span>
+                        <span className="text-xs font-black font-mono text-slate-800">{formatINR(loan.principal_amount)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-slate-400 block">Total Repaid</span>
+                        <span className="text-xs font-black font-mono text-emerald-700">{formatINR(totalRepaid)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-rose-600 block">Remaining</span>
+                        <span className={`text-xs font-black font-mono ${remainingBal > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                          {formatINR(remainingBal)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Recovery Progress Bar */}
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                        <span>Recovery Progress</span>
+                        <span>{pct}% ({formatINR(totalRepaid)} / {formatINR(loan.principal_amount)})</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                      </div>
+                    </div>
+
+                    {/* Month's Repayment Summary */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-600 font-medium">Repaid in {currentMaint.sheet_name}:</span>
+                      <span className="font-mono font-black text-emerald-700">
+                        {monthRepaidTotal > 0 ? `+${formatINR(monthRepaidTotal)}` : '₹0'}
+                      </span>
+                    </div>
+
+                    {monthRepayments.length > 0 && (
+                      <div className="p-2 bg-emerald-50/60 rounded-lg space-y-1">
+                        {monthRepayments.map((r, i) => (
+                          <div key={r.id || i} className="flex justify-between text-[10px] text-emerald-900 font-mono">
+                            <span>{r.date} • {r.channel}{r.notes ? ` (${r.notes})` : ''}</span>
+                            <span className="font-bold">+{formatINR(r.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Redesigned Monthly Assessment & 32 Flats Collection Status */}
         <div className="p-5 rounded-3xl bg-slate-50 border border-slate-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200">
@@ -477,6 +583,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           statement={currentMaint}
           waterStatement={currentWater}
           sequence={sortSequence}
+          staffLoans={staffLoans}
           onClose={() => setShowPdfExport(false)}
         />
       )}

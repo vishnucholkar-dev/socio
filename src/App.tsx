@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserRole, ApartmentData, WaterStatement, DirectoryContact, ExpenseItem, InflowItem, BillingConfigEntry, BalanceTransfer, PaymentChannel, AuthSession } from './types/apartment';
+import { UserRole, ApartmentData, WaterStatement, DirectoryContact, ExpenseItem, InflowItem, BillingConfigEntry, BalanceTransfer, PaymentChannel, AuthSession, StaffLoan, LoanRepayment } from './types/apartment';
 import {
   getApartmentData,
   recordFlatPayment,
@@ -14,6 +14,10 @@ import {
   updateBalanceTransfer,
   deleteBalanceTransfer,
   adjustAccountBalance,
+  addStaffLoan,
+  addLoanRepayment,
+  deleteLoanRepayment,
+  deleteStaffLoan,
   saveWaterStatement,
   saveSingleFlatWaterReading,
   closeCycle,
@@ -140,6 +144,11 @@ export const App: React.FC = () => {
   const handleAdjustBalance = (month: string, channel: 'Cash' | 'Bank', adjustment: { type: 'delta' | 'exact'; amount: number; reason?: string }) =>
     runAction(() => adjustAccountBalance(month, channel, adjustment));
 
+  const handleAddStaffLoan = (loan: Omit<StaffLoan, 'id' | 'repayments' | 'status'>) => runAction(() => addStaffLoan(loan));
+  const handleAddLoanRepayment = (loanId: string, repayment: Omit<LoanRepayment, 'id'>) => runAction(() => addLoanRepayment(loanId, repayment));
+  const handleDeleteLoanRepayment = (loanId: string, repaymentId: string) => runAction(() => deleteLoanRepayment(loanId, repaymentId));
+  const handleDeleteStaffLoan = (loanId: string) => runAction(() => deleteStaffLoan(loanId));
+
   const handleSaveWaterStatement = (statement: WaterStatement) => runAction(() => saveWaterStatement(statement));
   const handleSaveSingleReading = (monthSheet: string, flatNumber: number, closingReading: number) =>
     runAction(() => saveSingleFlatWaterReading(monthSheet, flatNumber, closingReading));
@@ -257,6 +266,7 @@ export const App: React.FC = () => {
             currentRole={currentRole}
             selectedMonth={selectedMonth}
             allMaintenanceStatements={data.maintenance_statements}
+            staffLoans={data.staff_loans || []}
             onAddExpense={handleAddExpense}
             onUpdateExpense={handleUpdateExpense}
             onDeleteExpense={handleDeleteExpense}
@@ -267,6 +277,10 @@ export const App: React.FC = () => {
             onUpdateTransfer={handleUpdateTransfer}
             onDeleteTransfer={handleDeleteTransfer}
             onAdjustBalance={handleAdjustBalance}
+            onAddStaffLoan={handleAddStaffLoan}
+            onAddLoanRepayment={handleAddLoanRepayment}
+            onDeleteLoanRepayment={handleDeleteLoanRepayment}
+            onDeleteStaffLoan={handleDeleteStaffLoan}
             cycleStatus={selectedCycleStatus}
             openCycles={availableMonths.filter(m => data.cycles?.[m]?.status === 'open')}
             onOpenCycle={handleOpenCycle}
@@ -320,6 +334,7 @@ export const App: React.FC = () => {
                 selectedMonth={selectedMonth}
                 allMaintenanceStatements={data.maintenance_statements}
                 allWaterStatements={data.water_statements}
+                staffLoans={data.staff_loans || []}
                 onSelectMonth={setSelectedMonth}
               />
             ) : (

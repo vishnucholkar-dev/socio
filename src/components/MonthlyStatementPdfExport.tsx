@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { MaintenanceStatement, WaterStatement } from '../types/apartment';
+import { MaintenanceStatement, WaterStatement, StaffLoan } from '../types/apartment';
+import { sameCalendarMonth } from '../services/storage';
 import { formatINR, computeDynamicStatementBalances, sortFlatsBySequence } from '../services/calculations';
 
 interface MonthlyStatementPdfExportProps {
   statement: MaintenanceStatement;
   waterStatement?: WaterStatement;
   sequence?: 'riser' | 'ascending';
+  staffLoans?: StaffLoan[];
   onClose: () => void;
 }
 
@@ -13,6 +15,7 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
   statement,
   waterStatement,
   sequence = 'riser',
+  staffLoans = [],
   onClose
 }) => {
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
@@ -26,6 +29,13 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
   const paidCount = statement.flats.filter(f => f.pending <= 1).length;
   const dueCount = statement.flats.filter(f => f.pending > 1).length;
   const recoveryRate = Math.round((totalFlatPaid / Math.max(1, totalFlatPaid + totalFlatPending)) * 100);
+
+  const relevantLoans = (staffLoans || []).filter(loan => {
+    if (loan.status === 'Active') return true;
+    const hasMonthRepayment = (loan.repayments || []).some(r => sameCalendarMonth(r.monthSheet, statement.sheet_name));
+    const wasDisbursedThisMonth = sameCalendarMonth(loan.disbursed_month_sheet, statement.sheet_name);
+    return hasMonthRepayment || wasDisbursedThisMonth;
+  });
 
   // Separate Paid disbursements from Billed unpaid liabilities
   const paidExpenses = statement.expenses.filter(e => e.status !== 'Billed');
@@ -174,6 +184,53 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
         }).join('')}
       </div>
     `;
+
+    const staffLoansHtml = relevantLoans.length ? `
+      <div style="margin-top: 6px; margin-bottom: 6px; padding: 4px 6px; border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 5px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+          <strong style="color: #1e3a8a; font-size: 7pt; text-transform: uppercase;">Staff Loan & Advance Ledger</strong>
+          <span style="font-size: 6pt; color: #1e40af; font-weight: 700;">${relevantLoans.length} Staff Loan Account(s)</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 6.5pt;">
+          <thead>
+            <tr style="background: #dbeafe; color: #1e40af; text-transform: uppercase; font-size: 5.8pt;">
+              <th style="padding: 2px 4px; text-align: left; border: 1px solid #bfdbfe;">Staff Member</th>
+              <th style="padding: 2px 4px; text-align: right; border: 1px solid #bfdbfe;">Total Loan</th>
+              <th style="padding: 2px 4px; text-align: right; border: 1px solid #bfdbfe;">Total Repaid</th>
+              <th style="padding: 2px 4px; text-align: right; border: 1px solid #bfdbfe;">Balance Pending</th>
+              <th style="padding: 2px 4px; text-align: right; border: 1px solid #bfdbfe;">Paid in ${statement.sheet_name}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${relevantLoans.map(loan => {
+              const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+              const remainingBal = Math.max(0, loan.principal_amount - totalRepaid);
+              const monthRepayments = (loan.repayments || []).filter(r => sameCalendarMonth(r.monthSheet, statement.sheet_name));
+              const monthRepaidTotal = monthRepayments.reduce((sum, r) => sum + r.amount, 0);
+              return `
+                <tr style="background: #ffffff;">
+                  <td style="padding: 2px 4px; border: 1px solid #bfdbfe; font-weight: 700; color: #0f172a;">
+                    ${loan.borrower_name} <span style="font-size: 5.4pt; color: #64748b;">(${loan.designation || 'Staff'})</span>
+                  </td>
+                  <td style="padding: 2px 4px; border: 1px solid #bfdbfe; text-align: right; font-family: monospace;">
+                    ₹${Math.round(loan.principal_amount).toLocaleString('en-IN')}
+                  </td>
+                  <td style="padding: 2px 4px; border: 1px solid #bfdbfe; text-align: right; font-family: monospace; color: #047857;">
+                    ₹${Math.round(totalRepaid).toLocaleString('en-IN')}
+                  </td>
+                  <td style="padding: 2px 4px; border: 1px solid #bfdbfe; text-align: right; font-family: monospace; font-weight: 800; color: ${remainingBal > 0 ? '#b91c1c' : '#047857'};">
+                    ₹${Math.round(remainingBal).toLocaleString('en-IN')}
+                  </td>
+                  <td style="padding: 2px 4px; border: 1px solid #bfdbfe; text-align: right; font-family: monospace; font-weight: 700; color: #1d4ed8;">
+                    ${monthRepaidTotal > 0 ? `+₹${Math.round(monthRepaidTotal).toLocaleString('en-IN')}` : '₹0'}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : '';
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -464,6 +521,9 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
               <strong style="font-size: 8pt; font-family: monospace; color: #1e40af;">${recoveryRate}%</strong>
             </div>
           </div>
+
+          <!-- Staff Loan & Advance Ledger -->
+          ${staffLoansHtml}
 
           <!-- 32 Flats Cards Grid (4 Vertical Columns) -->
           ${flatColumnsHtml}
@@ -801,6 +861,61 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
               <span className="text-[10px] text-blue-600 font-bold">Recovery Status</span>
             </div>
           </div>
+
+          {/* Staff Loan Ledger Preview */}
+          {relevantLoans.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50/50 border border-blue-200 rounded-2xl">
+              <div className="flex items-center justify-between pb-2 border-b border-blue-200 mb-2">
+                <span className="text-[11px] font-black uppercase text-blue-900 tracking-wider">
+                  🤝 Staff Loan & Advance Ledger
+                </span>
+                <span className="text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-full border border-blue-200">
+                  {relevantLoans.length} Account(s)
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {relevantLoans.map(loan => {
+                  const totalRepaid = (loan.repayments || []).reduce((sum, r) => sum + r.amount, 0);
+                  const remainingBal = Math.max(0, loan.principal_amount - totalRepaid);
+                  const monthRepayments = (loan.repayments || []).filter(r => sameCalendarMonth(r.monthSheet, statement.sheet_name));
+                  const monthRepaidTotal = monthRepayments.reduce((sum, r) => sum + r.amount, 0);
+
+                  return (
+                    <div key={loan.id} className="p-3 bg-white rounded-xl border border-slate-200 text-xs space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="font-black text-slate-900">{loan.borrower_name}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                          remainingBal === 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {remainingBal === 0 ? '✓ Settled' : 'Active'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 text-[10px] text-center bg-slate-50 p-1.5 rounded-lg font-mono">
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">Loan</span>
+                          <span className="font-bold text-slate-800">{formatINR(loan.principal_amount)}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px]">Repaid</span>
+                          <span className="font-bold text-emerald-700">{formatINR(totalRepaid)}</span>
+                        </div>
+                        <div>
+                          <span className="text-rose-600 block text-[9px]">Balance</span>
+                          <span className="font-bold text-rose-600">{formatINR(remainingBal)}</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-100">
+                        <span className="text-slate-500">Paid in {statement.sheet_name}:</span>
+                        <span className="font-mono font-bold text-emerald-700">
+                          {monthRepaidTotal > 0 ? `+${formatINR(monthRepaidTotal)}` : '₹0'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* 32 Flats Cards Grid (Direct 4-Column Grid) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
