@@ -21,7 +21,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   onSelectMonth
 }) => {
   const [showPdfExport, setShowPdfExport] = useState(false);
-  const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid' | 'advance'>('all');
+  const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid'>('all');
   const [sortSequence, setSortSequence] = useState<'riser' | 'ascending'>('riser');
   const maintenanceMatches = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const waterMatches = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
@@ -445,17 +445,8 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                   onClick={() => setDuesFilter('paid')}
                   className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'paid' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
                 >
-                  Paid Only ({currentMaint.flats.filter(f => f.pending <= 1 && f.pending >= -1).length})
+                  Paid Only ({currentMaint.flats.filter(f => f.pending <= 1).length})
                 </button>
-                {currentMaint.flats.some(f => f.pending < -1) && (
-                  <button
-                    type="button"
-                    onClick={() => setDuesFilter('advance')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'advance' ? 'bg-blue-600 text-white' : 'text-blue-700 hover:bg-blue-50'}`}
-                  >
-                    Advance ({currentMaint.flats.filter(f => f.pending < -1).length})
-                  </button>
-                )}
               </div>
 
               {/* Sequence Toggle Pill (Riser vs Ascending) */}
@@ -512,11 +503,6 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
               <span className="text-[10px] text-rose-600 font-bold block">
                 {currentMaint.flats.filter(f => f.pending > 1).length} Flats Unpaid
               </span>
-              {currentMaint.flats.some(f => f.pending < -1) && (
-                <span className="text-[10px] text-blue-700 font-bold block mt-0.5">
-                  • {formatINR(currentMaint.flats.filter(f => f.pending < -1).reduce((sum, f) => sum + Math.abs(f.pending), 0))} Advance Credit ({currentMaint.flats.filter(f => f.pending < -1).length})
-                </span>
-              )}
             </div>
 
             <div className="bg-white p-3 rounded-2xl border border-blue-200 shadow-2xs">
@@ -533,8 +519,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
             const sortedAndFiltered = sortFlatsBySequence(
               [...currentMaint.flats].filter(f => {
                 if (duesFilter === 'due') return f.pending > 1;
-                if (duesFilter === 'paid') return f.pending <= 1 && f.pending >= -1;
-                if (duesFilter === 'advance') return f.pending < -1;
+                if (duesFilter === 'paid') return f.pending <= 1;
                 return true;
               }),
               sortSequence
@@ -552,9 +537,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                     <div
                       key={f.flat}
                       className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                        f.pending < -1
-                          ? 'bg-blue-50/50 border-blue-200 shadow-2xs'
-                          : isPaid
+                        isPaid
                           ? 'bg-white border-emerald-200/80 shadow-2xs'
                           : f.paid > 0
                           ? 'bg-amber-50/40 border-amber-300 shadow-2xs'
@@ -568,11 +551,8 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                           {(f.previous_pending || 0) > 0 && (
                             <span className="text-rose-600 font-bold ml-1">+{formatINR(Math.round(f.previous_pending))} arr</span>
                           )}
-                          {(f.previous_pending || 0) < 0 && (
-                            <span className="text-emerald-700 font-bold ml-1">-{formatINR(Math.round(Math.abs(f.previous_pending)))} adv</span>
-                          )}
                         </span>
-                        {roundedPaid > 0 && (f.pending > 1 || f.pending < -1) && (
+                        {roundedPaid > 0 && f.pending > 1 && (
                           <span className="text-[10px] text-emerald-700 font-mono font-bold block">
                             Paid: {formatINR(roundedPaid)}
                           </span>
@@ -581,24 +561,20 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
 
                       <div className="text-right">
                         <span className={`font-mono font-black block text-xs ${
-                          f.pending > 1 ? 'text-rose-600' : f.pending < -1 ? 'text-blue-700' : 'text-emerald-700'
+                          f.pending > 1 ? 'text-rose-600' : 'text-emerald-700'
                         }`}>
                           {f.pending > 1
-                            ? `+${formatINR(roundedPending)} Due`
-                            : f.pending < -1
-                            ? `-${formatINR(Math.abs(roundedPending))} Adv`
-                            : formatINR(roundedPaid)}
+                            ? `${formatINR(roundedPending)} Due`
+                            : `${formatINR(roundedPaid)} Paid`}
                         </span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                          f.pending < -1
-                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
-                            : isPaid
+                          isPaid
                             ? 'bg-emerald-100 text-emerald-800'
                             : f.paid > 0
                             ? 'bg-amber-100 text-amber-800 border border-amber-200'
                             : 'bg-rose-100 text-rose-800'
                         }`}>
-                          {f.pending < -1 ? 'Advance' : isPaid ? 'Paid' : f.paid > 0 ? 'Partial' : 'Due'}
+                          {isPaid ? 'Paid' : f.paid > 0 ? 'Partial' : 'Due'}
                         </span>
                       </div>
                     </div>
