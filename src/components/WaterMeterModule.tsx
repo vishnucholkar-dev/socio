@@ -320,9 +320,11 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
               <div className="bg-white text-slate-900 p-3 rounded-xl min-w-[130px] shadow-md">
                 <p className="text-xs font-semibold text-slate-500">Total Month Bill</p>
                 <p className="text-xl font-black text-blue-600 mt-0.5">{formatINR(residentFlatData.actual_amount)}</p>
-                {residentFlatData.pending_amount > 0 && (
+                {residentFlatData.pending_amount > 0 ? (
                   <p className="text-[10px] text-rose-600 font-bold">+ {formatINR(residentFlatData.pending_amount)} Pending</p>
-                )}
+                ) : residentFlatData.pending_amount < 0 ? (
+                  <p className="text-[10px] text-emerald-700 font-bold">- {formatINR(Math.abs(residentFlatData.pending_amount))} Advance</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -587,13 +589,13 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                         <p className="text-[10px] text-slate-400">+ ₹{currentFlat.mandatory_maintenance} base</p>
                       </div>
 
-                      <div className={`p-3 rounded-2xl border ${pendingArrears > 0 ? 'bg-rose-50/60 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-                        <p className="text-[11px] text-slate-500 font-medium">Previous Pending</p>
-                        <p className={`text-lg font-bold font-mono mt-0.5 ${pendingArrears > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
-                          {formatINR(pendingArrears)}
+                      <div className={`p-3 rounded-2xl border ${pendingArrears > 0 ? 'bg-rose-50/60 border-rose-200' : pendingArrears < 0 ? 'bg-emerald-50/60 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <p className="text-[11px] text-slate-500 font-medium">{pendingArrears < 0 ? 'Advance Balance' : 'Previous Pending'}</p>
+                        <p className={`text-lg font-bold font-mono mt-0.5 ${pendingArrears > 0 ? 'text-rose-600' : pendingArrears < 0 ? 'text-emerald-700' : 'text-slate-700'}`}>
+                          {pendingArrears < 0 ? `-${formatINR(Math.abs(pendingArrears))}` : formatINR(pendingArrears)}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          {priorCycleClosed ? 'Carried from closed cycle' : 'Prior month not closed (₹0)'}
+                          {pendingArrears < 0 ? 'Advance credit applied' : (priorCycleClosed ? 'Carried from closed cycle' : 'Prior month not closed (₹0)')}
                         </p>
                       </div>
 
@@ -714,7 +716,7 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                 <th className="py-3 px-3 text-right">Water Cost</th>
                 <th className="py-3 px-3 text-right">Base Maint</th>
                 <th className="py-3 px-3 text-right">Actual Month</th>
-                <th className="py-3 px-3 text-right">Pending</th>
+                <th className="py-3 px-3 text-right">Pending / Advance</th>
                 <th className="py-3 px-3 text-right font-bold text-slate-900">Total Payable</th>
               </tr>
             </thead>
@@ -810,9 +812,19 @@ export const WaterMeterModule: React.FC<WaterMeterModuleProps> = ({
                       {formatINR(Math.round(flat.actual_amount || 0))}
                     </td>
 
-                    {/* Pending */}
-                    <td className={`py-2.5 px-3 text-right font-mono ${flat.pending_amount > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}`}>
-                      {formatINR(Math.round(flat.pending_amount || 0))}
+                    {/* Pending / Advance */}
+                    <td className={`py-2.5 px-3 text-right font-mono ${
+                      flat.pending_amount > 1
+                        ? 'text-rose-600 font-bold'
+                        : flat.pending_amount < -1
+                        ? 'text-emerald-700 font-bold'
+                        : 'text-slate-400'
+                    }`}>
+                      {flat.pending_amount > 1
+                        ? `+${formatINR(Math.round(flat.pending_amount))}`
+                        : flat.pending_amount < -1
+                        ? `-${formatINR(Math.round(Math.abs(flat.pending_amount)))}`
+                        : '₹0'}
                     </td>
 
                     {/* Total Payable */}

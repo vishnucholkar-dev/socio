@@ -47,7 +47,7 @@ export interface FlatMaintenanceData {
   paid: number;
   pending: number;
   mode: PaymentMode;
-  status: 'Paid' | 'Partial' | 'Due';
+  status: 'Paid' | 'Partial' | 'Due' | 'Advance';
   payment_date?: string;
   notes?: string;
   previous_pending?: number;

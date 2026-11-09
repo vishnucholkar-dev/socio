@@ -166,17 +166,17 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
           const roundedPaid = Math.round(f.paid || 0);
           const roundedPending = Math.round(f.pending || 0);
           return `
-            <div style="border: 1px solid ${isPaid ? '#a7f3d0' : '#fca5a5'}; background: #ffffff; padding: 2.5px 4.5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5pt;">
+            <div style="border: 1px solid ${f.pending < -1 ? '#bfdbfe' : isPaid ? '#a7f3d0' : '#fca5a5'}; background: #ffffff; padding: 2.5px 4.5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5pt;">
               <div>
                 <strong style="color: #0f172a; display: block;">Flat ${f.flat}</strong>
                 <span style="font-family: monospace; color: #64748b; font-size: 5.6pt;">Bill: ₹${roundedBill.toLocaleString('en-IN')}</span>
               </div>
               <div style="text-align: right;">
-                <strong style="font-family: monospace; display: block; color: ${isPaid ? '#047857' : '#e11d48'}; font-size: 6.6pt;">
-                  ₹${(isPaid ? roundedPaid : roundedPending).toLocaleString('en-IN')}
+                <strong style="font-family: monospace; display: block; color: ${f.pending > 1 ? '#e11d48' : f.pending < -1 ? '#1d4ed8' : '#047857'}; font-size: 6.6pt;">
+                  ${f.pending < -1 ? `-₹${Math.abs(roundedPending).toLocaleString('en-IN')}` : isPaid ? `₹${roundedPaid.toLocaleString('en-IN')}` : `₹${roundedPending.toLocaleString('en-IN')}`}
                 </strong>
-                <span style="font-size: 5.4pt; font-weight: 800; text-transform: uppercase; padding: 0.5px 3.5px; border-radius: 9999px; background: ${isPaid ? '#d1fae5' : '#ffe4e6'}; color: ${isPaid ? '#065f46' : '#9f1239'};">
-                  ${isPaid ? 'Paid' : 'Due'}
+                <span style="font-size: 5.4pt; font-weight: 800; text-transform: uppercase; padding: 0.5px 3.5px; border-radius: 9999px; background: ${f.pending < -1 ? '#dbeafe' : isPaid ? '#d1fae5' : '#ffe4e6'}; color: ${f.pending < -1 ? '#1e40af' : isPaid ? '#065f46' : '#9f1239'};">
+                  ${f.pending < -1 ? 'Adv' : isPaid ? 'Paid' : 'Due'}
                 </span>
               </div>
             </div>
@@ -929,7 +929,9 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                 <div
                   key={f.flat}
                   className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                    isPaid
+                    f.pending < -1
+                      ? 'bg-blue-50/50 border-blue-200 shadow-2xs'
+                      : isPaid
                       ? 'bg-white border-emerald-200/80 shadow-2xs'
                       : 'bg-white border-rose-300 shadow-2xs'
                   }`}
@@ -940,13 +942,17 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                   </div>
 
                   <div className="text-right">
-                    <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
+                    <span className={`font-mono font-bold block text-xs ${f.pending > 1 ? 'text-rose-600' : f.pending < -1 ? 'text-blue-700' : 'text-emerald-700'}`}>
+                      {f.pending < -1 ? `-${formatINR(Math.abs(roundedPending))}` : isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
                     </span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                      isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                      f.pending < -1
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                        : isPaid
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-rose-100 text-rose-800'
                     }`}>
-                      {isPaid ? 'Paid' : 'Due'}
+                      {f.pending < -1 ? 'Advance' : isPaid ? 'Paid' : 'Due'}
                     </span>
                   </div>
                 </div>

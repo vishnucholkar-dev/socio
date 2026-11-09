@@ -81,7 +81,7 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
                 <th className="py-3 px-4 text-right">Consumed & Rate</th>
                 <th className="py-3 px-4 text-right">Actual Bill</th>
                 <th className="py-3 px-4 text-right">Amount Paid</th>
-                <th className="py-3 px-4 text-right">Pending Balance</th>
+                <th className="py-3 px-4 text-right">Pending / Advance</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-center">Channel</th>
                 <th className="py-3 px-4 text-right">Receipts</th>
@@ -152,17 +152,21 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
                       {formatINR(flat.paid)}
                     </td>
 
-                    {/* 6. Pending Balance */}
-                    <td className={`py-3.5 px-4 text-right font-bold whitespace-nowrap ${flat.pending > 1 ? 'text-rose-600' : 'text-slate-400'}`}>
-                      {formatINR(flat.pending)}
+                    {/* 6. Pending / Advance Balance */}
+                    <td className={`py-3.5 px-4 text-right font-bold whitespace-nowrap ${flat.pending > 1 ? 'text-rose-600' : flat.pending < -1 ? 'text-blue-700' : 'text-slate-400'}`}>
+                      {flat.pending < -1 ? `-${formatINR(Math.abs(flat.pending))}` : formatINR(flat.pending)}
                     </td>
 
                     {/* 7. Status Badge */}
                     <td className="py-3.5 px-4 text-center font-sans whitespace-nowrap">
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        isPaid ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                        flat.pending < -1
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : isPaid
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
                       }`}>
-                        {isPaid ? 'Paid' : 'Due'}
+                        {flat.pending < -1 ? 'Advance' : isPaid ? 'Paid' : 'Due'}
                       </span>
                     </td>
 
@@ -343,12 +347,17 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
                   <span className="text-slate-600">Water Consumption Charge:</span>
                   <span className="font-mono font-bold text-slate-900">{formatINR(selectedReceipt.waterCharge)}</span>
                 </div>
-                {selectedReceipt.flatData.previous_pending > 0 && (
+                {(selectedReceipt.flatData.previous_pending || 0) > 0 ? (
                   <div className="flex justify-between py-1.5 border-b border-slate-100 text-rose-600">
                     <span>Carried-Forward Arrears:</span>
-                    <span className="font-mono font-bold">{formatINR(selectedReceipt.flatData.previous_pending)}</span>
+                    <span className="font-mono font-bold">+{formatINR(selectedReceipt.flatData.previous_pending)}</span>
                   </div>
-                )}
+                ) : (selectedReceipt.flatData.previous_pending || 0) < 0 ? (
+                  <div className="flex justify-between py-1.5 border-b border-slate-100 text-emerald-700 font-bold">
+                    <span>Advance Credit Applied:</span>
+                    <span className="font-mono">-{formatINR(Math.abs(selectedReceipt.flatData.previous_pending))}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between py-2 border-t-2 border-slate-800 font-bold text-sm">
                   <span className="text-slate-900">Total Assessment Billed:</span>
                   <span className="font-mono text-slate-900">{formatINR(selectedReceipt.flatData.total_payable || selectedReceipt.flatData.actual)}</span>
@@ -367,15 +376,17 @@ export const ResidentHistory: React.FC<ResidentHistoryProps> = ({
                 </span>
               </div>
               <div className="flex justify-between items-center mt-2 pt-2 border-t border-emerald-200/60">
-                <span className="text-slate-600">Balance Pending:</span>
-                <span className={`font-mono font-bold ${(selectedReceipt.flatData.pending || 0) > 1 ? 'text-rose-600' : 'text-slate-700'}`}>
-                  {formatINR(selectedReceipt.flatData.pending)}
+                <span className="text-slate-600">
+                  {(selectedReceipt.flatData.pending || 0) < -1 ? 'Advance Balance:' : 'Balance Pending:'}
+                </span>
+                <span className={`font-mono font-bold ${(selectedReceipt.flatData.pending || 0) > 1 ? 'text-rose-600' : (selectedReceipt.flatData.pending || 0) < -1 ? 'text-blue-700' : 'text-slate-700'}`}>
+                  {(selectedReceipt.flatData.pending || 0) < -1 ? `-${formatINR(Math.abs(selectedReceipt.flatData.pending || 0))}` : formatINR(selectedReceipt.flatData.pending)}
                 </span>
               </div>
             </div>
 
             <div className="mt-6 flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-100 pt-3">
-              <span>Status: {selectedReceipt.flatData.pending <= 1 ? 'PAID & CLEARED' : 'PARTIAL / DUE'}</span>
+              <span>Status: {(selectedReceipt.flatData.pending || 0) < -1 ? 'ADVANCE CREDIT' : selectedReceipt.flatData.pending <= 1 ? 'PAID & CLEARED' : 'PARTIAL / DUE'}</span>
               <span>Rockcliff 'B' Block Residents Association</span>
             </div>
 

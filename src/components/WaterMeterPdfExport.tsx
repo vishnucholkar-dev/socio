@@ -55,7 +55,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
         <td class="text-right font-semibold text-dark">₹${Math.round(flat.water_charge || 0).toLocaleString('en-IN')}</td>
         <td class="text-right text-muted">₹${Math.round(flat.mandatory_maintenance || 0).toLocaleString('en-IN')}</td>
         <td class="text-right font-bold text-dark">₹${Math.round(flat.actual_amount || 0).toLocaleString('en-IN')}</td>
-        <td class="text-right font-semibold ${flat.pending_amount > 0 ? 'text-red' : 'text-muted'}">₹${Math.round(flat.pending_amount || 0).toLocaleString('en-IN')}</td>
+        <td class="text-right font-semibold ${flat.pending_amount > 1 ? 'text-red' : flat.pending_amount < -1 ? 'text-green' : 'text-muted'}">${flat.pending_amount > 1 ? `+₹${Math.round(flat.pending_amount).toLocaleString('en-IN')}` : flat.pending_amount < -1 ? `-₹${Math.round(Math.abs(flat.pending_amount)).toLocaleString('en-IN')}` : '₹0'}</td>
         <td class="text-right font-bold text-dark">₹${Math.round(flat.total_payable || 0).toLocaleString('en-IN')}</td>
       </tr>
     `).join('');
@@ -169,6 +169,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
           .text-muted { color: #64748b; }
           .text-purple { color: #7e22ce !important; }
           .text-red { color: #dc2626 !important; }
+          .text-green { color: #047857 !important; }
           .text-blue { color: #1d4ed8 !important; }
 
           tfoot tr td {
@@ -259,7 +260,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
               <th class="text-right">WATER COST</th>
               <th class="text-right">BASE MAINT</th>
               <th class="text-right">MONTH BILL</th>
-              <th class="text-right">PENDING</th>
+              <th class="text-right">PENDING / (ADV)</th>
               <th class="text-right">TOTAL PAYABLE</th>
             </tr>
           </thead>
@@ -276,7 +277,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
               <td class="text-right">₹${Math.round(totalWaterCost).toLocaleString('en-IN')}</td>
               <td class="text-right">₹${Math.round(totalBaseMaint).toLocaleString('en-IN')}</td>
               <td class="text-right text-blue">₹${Math.round(totalMonthBill).toLocaleString('en-IN')}</td>
-              <td class="text-right text-red">₹${Math.round(totalPending).toLocaleString('en-IN')}</td>
+              <td class="text-right ${totalPending > 1 ? 'text-red' : totalPending < -1 ? 'text-green' : 'text-muted'}">${totalPending > 1 ? `+₹${Math.round(totalPending).toLocaleString('en-IN')}` : totalPending < -1 ? `-₹${Math.round(Math.abs(totalPending)).toLocaleString('en-IN')}` : '₹0'}</td>
               <td class="text-right text-dark">₹${Math.round(totalPayable).toLocaleString('en-IN')}</td>
             </tr>
           </tfoot>
@@ -447,7 +448,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
                 <th className="py-1 px-1.5 text-right border-r border-slate-300">WATER COST</th>
                 <th className="py-1 px-1.5 text-right border-r border-slate-300">BASE MAINT</th>
                 <th className="py-1 px-1.5 text-right border-r border-slate-300">MONTH BILL</th>
-                <th className="py-1 px-1.5 text-right border-r border-slate-300">PENDING</th>
+                <th className="py-1 px-1.5 text-right border-r border-slate-300">PENDING / (ADV)</th>
                 <th className="py-1 px-1.5 text-right">TOTAL PAYABLE</th>
               </tr>
             </thead>
@@ -462,8 +463,8 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
                   <td className="py-0.5 px-1.5 text-right font-semibold text-slate-800 border-r border-slate-200">{formatINR(Math.round(flat.water_charge || 0))}</td>
                   <td className="py-0.5 px-1.5 text-right text-slate-600 border-r border-slate-200">{formatINR(Math.round(flat.mandatory_maintenance || 0))}</td>
                   <td className="py-0.5 px-1.5 text-right font-bold text-slate-900 border-r border-slate-200">{formatINR(Math.round(flat.actual_amount || 0))}</td>
-                  <td className={`py-0.5 px-1.5 text-right font-semibold border-r border-slate-200 ${flat.pending_amount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                    {formatINR(Math.round(flat.pending_amount || 0))}
+                  <td className={`py-0.5 px-1.5 text-right font-semibold border-r border-slate-200 ${flat.pending_amount > 1 ? 'text-rose-600' : flat.pending_amount < -1 ? 'text-emerald-700' : 'text-slate-400'}`}>
+                    {flat.pending_amount > 1 ? `+${formatINR(Math.round(flat.pending_amount))}` : flat.pending_amount < -1 ? `-${formatINR(Math.round(Math.abs(flat.pending_amount)))}` : '₹0'}
                   </td>
                   <td className="py-0.5 px-1.5 text-right font-black text-slate-900">{formatINR(Math.round(flat.total_payable || 0))}</td>
                 </tr>
@@ -479,7 +480,7 @@ export const WaterMeterPdfExport: React.FC<WaterMeterPdfExportProps> = ({
                 <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(Math.round(totalWaterCost))}</td>
                 <td className="py-1 px-1.5 text-right border-r border-slate-300">{formatINR(Math.round(totalBaseMaint))}</td>
                 <td className="py-1 px-1.5 text-right text-blue-700 border-r border-slate-300">{formatINR(Math.round(totalMonthBill))}</td>
-                <td className={`py-1 px-1.5 text-right border-r border-slate-300 ${totalPending > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{formatINR(Math.round(totalPending))}</td>
+                <td className={`py-1 px-1.5 text-right border-r border-slate-300 ${totalPending > 1 ? 'text-rose-600' : totalPending < -1 ? 'text-emerald-700' : 'text-slate-400'}`}>{totalPending > 1 ? `+${formatINR(Math.round(totalPending))}` : totalPending < -1 ? `-${formatINR(Math.round(Math.abs(totalPending)))}` : '₹0'}</td>
                 <td className="py-1 px-1.5 text-right text-slate-900">{formatINR(Math.round(totalPayable))}</td>
               </tr>
             </tfoot>

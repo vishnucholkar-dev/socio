@@ -21,7 +21,7 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
   onSelectMonth
 }) => {
   const [showPdfExport, setShowPdfExport] = useState(false);
-  const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid'>('all');
+  const [duesFilter, setDuesFilter] = useState<'all' | 'due' | 'paid' | 'advance'>('all');
   const [sortSequence, setSortSequence] = useState<'riser' | 'ascending'>('riser');
   const maintenanceMatches = allMaintenanceStatements.filter(m => sameCalendarMonth(m.sheet_name, selectedMonth));
   const waterMatches = allWaterStatements.filter(w => sameCalendarMonth(w.sheet_name, selectedMonth));
@@ -445,8 +445,17 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                   onClick={() => setDuesFilter('paid')}
                   className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'paid' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-emerald-50'}`}
                 >
-                  Paid Only ({currentMaint.flats.filter(f => f.pending <= 1).length})
+                  Paid Only ({currentMaint.flats.filter(f => f.pending <= 1 && f.pending >= -1).length})
                 </button>
+                {currentMaint.flats.some(f => f.pending < -1) && (
+                  <button
+                    type="button"
+                    onClick={() => setDuesFilter('advance')}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${duesFilter === 'advance' ? 'bg-blue-600 text-white' : 'text-blue-700 hover:bg-blue-50'}`}
+                  >
+                    Advance ({currentMaint.flats.filter(f => f.pending < -1).length})
+                  </button>
+                )}
               </div>
 
               {/* Sequence Toggle Pill (Riser vs Ascending) */}
@@ -500,9 +509,14 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
               <p className={`text-base font-black font-mono mt-0.5 ${totalFlatPending > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                 {formatINR(totalFlatPending)}
               </p>
-              <span className="text-[10px] text-rose-600 font-bold">
+              <span className="text-[10px] text-rose-600 font-bold block">
                 {currentMaint.flats.filter(f => f.pending > 1).length} Flats Unpaid
               </span>
+              {currentMaint.flats.some(f => f.pending < -1) && (
+                <span className="text-[10px] text-blue-700 font-bold block mt-0.5">
+                  • {formatINR(currentMaint.flats.filter(f => f.pending < -1).reduce((sum, f) => sum + Math.abs(f.pending), 0))} Advance Credit ({currentMaint.flats.filter(f => f.pending < -1).length})
+                </span>
+              )}
             </div>
 
             <div className="bg-white p-3 rounded-2xl border border-blue-200 shadow-2xs">
@@ -517,7 +531,12 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           {/* 32 Flats Cards Grid (Direct 4-Column Grid: Row 1 = 101,102,103,104 in Ascending OR 101,201,301,401 in Riser) */}
           {(() => {
             const sortedAndFiltered = sortFlatsBySequence(
-              [...currentMaint.flats].filter(f => duesFilter === 'all' ? true : duesFilter === 'due' ? f.pending > 1 : f.pending <= 1),
+              [...currentMaint.flats].filter(f => {
+                if (duesFilter === 'due') return f.pending > 1;
+                if (duesFilter === 'paid') return f.pending <= 1 && f.pending >= -1;
+                if (duesFilter === 'advance') return f.pending < -1;
+                return true;
+              }),
               sortSequence
             );
 
@@ -533,7 +552,9 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                     <div
                       key={f.flat}
                       className={`p-2.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                        isPaid
+                        f.pending < -1
+                          ? 'bg-blue-50/50 border-blue-200 shadow-2xs'
+                          : isPaid
                           ? 'bg-white border-emerald-200/80 shadow-2xs'
                           : 'bg-white border-rose-300 shadow-2xs'
                       }`}
@@ -544,13 +565,17 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                       </div>
 
                       <div className="text-right">
-                        <span className={`font-mono font-bold block text-xs ${isPaid ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          {isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
+                        <span className={`font-mono font-bold block text-xs ${f.pending > 1 ? 'text-rose-600' : f.pending < -1 ? 'text-blue-700' : 'text-emerald-700'}`}>
+                          {f.pending < -1 ? `-${formatINR(Math.abs(roundedPending))}` : isPaid ? formatINR(roundedPaid) : formatINR(roundedPending)}
                         </span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider ${
-                          isPaid ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          f.pending < -1
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : isPaid
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
                         }`}>
-                          {isPaid ? 'Paid' : 'Due'}
+                          {f.pending < -1 ? 'Advance' : isPaid ? 'Paid' : 'Due'}
                         </span>
                       </div>
                     </div>

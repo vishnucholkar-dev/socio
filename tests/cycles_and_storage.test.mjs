@@ -191,10 +191,15 @@ runTest('Incremental flat payments record individual receipts and reconcile chan
   assert.strictEqual(flat101.receipts[1].mode, 'Online');
   assert.strictEqual(flat101.receipts[1].amount, 500);
 
-  // Cannot pay more than total payable
-  assert.throws(() => {
-    storage.recordFlatPayment('October 2026', 101, 500000, 'Online', 'Excess payment', '2026-10-15');
-  }, /Payment cannot exceed the flat’s outstanding balance/);
+  // Overpayment: paying more than the bill records an advance credit and updates status to Advance
+  const payable = flat101.total_payable || flat101.actual;
+  storage.recordFlatPayment('October 2026', 101, 2000, 'Online', 'Advance payment', '2026-10-15');
+  maint = storage.getApartmentData().maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  flat101 = maint.flats.find(f => f.flat === 101);
+  assert.strictEqual(flat101.paid, 3500);
+  assert.strictEqual(flat101.pending, Math.round((payable - 3500) * 100) / 100);
+  assert(flat101.pending < 0, 'Pending should be negative representing advance credit');
+  assert.strictEqual(flat101.status, 'Advance');
 });
 
 // 5. SINGLE FLAT WATER READING SAVE & RECALCULATION
@@ -646,6 +651,46 @@ runTest('Staff loan disbursal and ad-hoc cash/bank repayments correctly update l
 
   const afterRevertedMaint = withReverted.maintenance_statements.find(s => s.sheet_name === 'October 2026');
   assert.strictEqual(afterRevertedMaint.bank_balance, initialBank, 'Bank balance restored upon reverting repayment');
+});
+
+// 20. FLAT OVERPAYMENT & SIGNED ADVANCE (+/-) ROLLOVER DEDUCTION
+runTest('Flat overpayment records signed advance credit and automatically reduces subsequent month total payable', () => {
+  const data = storage.getApartmentData();
+  const octMaint = data.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const f102 = octMaint.flats.find(f => f.flat === 102);
+  const octBill = f102.actual; // e.g. 3161
+  const payAmount = Math.round((octBill + 1000) * 100) / 100;
+
+  // 1. Flat 102 overpays by exactly 1,000 extra via Online (e.g. paying bill + 1000)
+  storage.recordFlatPayment('October 2026', 102, payAmount, 'Online', 'Paid bill plus 1000 advance', '2026-10-12');
+
+  const afterPay = storage.getApartmentData();
+  const octMaintAfter = afterPay.maintenance_statements.find(s => s.sheet_name === 'October 2026');
+  const f102After = octMaintAfter.flats.find(f => f.flat === 102);
+
+  assert.strictEqual(f102After.paid, payAmount);
+  assert.strictEqual(f102After.pending, -1000, 'Pending must be signed negative (-1000) representing advance credit');
+  assert.strictEqual(f102After.status, 'Advance', 'Status must be Advance');
+
+  // 2. Cascade / Rollover into subsequent month (e.g. November 2026)
+  // Ensure water statement is explicitly saved before closing
+  const octWater = afterPay.water_statements.find(s => s.sheet_name === 'October 2026');
+  storage.saveWaterStatement(octWater);
+
+  // Close October with note and roll over into November
+  const withClosed = storage.closeCycle('October 2026', 'Closed to verify advance rollover');
+  const novMaint = withClosed.maintenance_statements.find(s => s.sheet_name === 'November 2026');
+  const novWater = withClosed.water_statements.find(s => s.sheet_name === 'November 2026');
+
+  assert(novMaint, 'November maintenance statement must exist');
+  assert(novWater, 'November water statement must exist');
+
+  const f102Nov = novMaint.flats.find(f => f.flat === 102);
+  const f102NovWater = novWater.flats.find(f => f.flat === 102);
+
+  assert.strictEqual(f102Nov.previous_pending, -1000, 'November carried-forward arrears must be -1000');
+  assert.strictEqual(f102NovWater.pending_amount, -1000, 'November water statement pending_amount must be -1000');
+  assert.strictEqual(f102Nov.total_payable, Math.round((f102Nov.actual + (-1000)) * 100) / 100, 'November total payable must be reduced by 1000 advance');
 });
 
 console.log(`\n--- Test Results: ${passedCount} passed, ${failedCount} failed ---\n`);

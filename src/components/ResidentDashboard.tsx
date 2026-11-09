@@ -229,13 +229,21 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             <p className="text-[11px] text-emerald-600 mt-0.5">Payment Mode: {flatMaint?.mode || 'Due'}</p>
           </div>
 
-          <div className={`p-4 rounded-2xl border ${((flatMaint?.pending || 0) > 1) ? 'bg-rose-50/60 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-xs text-slate-500 font-medium">Balance Pending Due</span>
-            <p className={`text-2xl font-black mt-1 font-mono ${(flatMaint?.pending || 0) > 1 ? 'text-rose-600' : 'text-slate-700'}`}>
-              {formatINR(flatMaint?.pending)}
+          <div className={`p-4 rounded-2xl border ${(flatMaint?.pending || 0) > 1 ? 'bg-rose-50/60 border-rose-200' : (flatMaint?.pending || 0) < -1 ? 'bg-blue-50/60 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+            <span className="text-xs font-medium text-slate-500">
+              {(flatMaint?.pending || 0) < -1 ? 'Advance Balance (Credit)' : 'Balance Pending Due'}
+            </span>
+            <p className={`text-2xl font-black mt-1 font-mono ${(flatMaint?.pending || 0) > 1 ? 'text-rose-600' : (flatMaint?.pending || 0) < -1 ? 'text-blue-700' : 'text-slate-700'}`}>
+              {(flatMaint?.pending || 0) < -1 ? `-${formatINR(Math.abs(flatMaint?.pending || 0))}` : formatINR(flatMaint?.pending)}
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {(flatMaint?.previous_pending || 0) > 0 ? `Includes +${formatINR(flatMaint?.previous_pending)} prior arrears` : 'No prior arrears'}
+              {(flatMaint?.previous_pending || 0) > 0
+                ? `Includes +${formatINR(flatMaint?.previous_pending)} prior arrears`
+                : (flatMaint?.previous_pending || 0) < 0
+                ? `Includes -${formatINR(Math.abs(flatMaint?.previous_pending))} advance credit`
+                : (flatMaint?.pending || 0) < -1
+                ? 'Credit will automatically reduce next month\'s bill'
+                : 'No prior arrears'}
             </p>
           </div>
 
@@ -269,11 +277,15 @@ export const ResidentDashboard: React.FC<ResidentDashboardProps> = ({
             </div>
 
             <div className="p-3.5 rounded-xl border border-slate-200 bg-white">
-              <span className="text-slate-500 block">3. Previous Pending Arrears</span>
-              <span className={`text-base font-bold font-mono ${(flatMaint?.previous_pending || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                {formatINR(flatMaint?.previous_pending || 0)}
+              <span className="text-slate-500 block">
+                3. {(flatMaint?.previous_pending || 0) < 0 ? 'Previous Advance Credit' : 'Previous Pending Arrears'}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">Carried forward from preceding closed cycle</span>
+              <span className={`text-base font-bold font-mono ${(flatMaint?.previous_pending || 0) > 0 ? 'text-rose-600' : (flatMaint?.previous_pending || 0) < 0 ? 'text-blue-700' : 'text-slate-900'}`}>
+                {(flatMaint?.previous_pending || 0) < 0 ? `-${formatINR(Math.abs(flatMaint?.previous_pending || 0))}` : formatINR(flatMaint?.previous_pending || 0)}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                {(flatMaint?.previous_pending || 0) < 0 ? 'Credit carried forward from preceding cycle' : 'Carried forward from preceding closed cycle'}
+              </span>
             </div>
           </div>
         </div>

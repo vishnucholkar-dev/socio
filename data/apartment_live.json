@@ -59,8 +59,8 @@
           "water_charge": 7049.74,
           "mandatory_maintenance": 1400,
           "actual_amount": 8449.74,
-          "pending_amount": 2685.91,
-          "total_payable": 11135.65,
+          "pending_amount": -1000,
+          "total_payable": 7449.74,
           "previous_pending": 2685.91
         },
         {
@@ -9277,10 +9277,10 @@
         {
           "flat": 101,
           "actual": 8449.74,
-          "previous_pending": 2685.91,
-          "total_payable": 11135.65,
+          "previous_pending": -1000,
+          "total_payable": 7449.74,
           "paid": 0,
-          "pending": 11135.65,
+          "pending": 7449.74,
           "mode": "Due",
           "status": "Due"
         },
@@ -9606,7 +9606,136 @@
       "cash_balance": 78000,
       "bank_balance": 78156,
       "total_balance": 156156,
-      "dues_list": [],
+      "dues_list": [
+        {
+          "item": "Flat 101",
+          "amount": 7449.74
+        },
+        {
+          "item": "Flat 102",
+          "amount": 4561.14
+        },
+        {
+          "item": "Flat 103",
+          "amount": 3652.91
+        },
+        {
+          "item": "Flat 104",
+          "amount": 3850.76
+        },
+        {
+          "item": "Flat 105",
+          "amount": 4329.99
+        },
+        {
+          "item": "Flat 106",
+          "amount": 3456.31
+        },
+        {
+          "item": "Flat 107",
+          "amount": 3981.02
+        },
+        {
+          "item": "Flat 108",
+          "amount": 4368.71
+        },
+        {
+          "item": "Flat 201",
+          "amount": 3889.65
+        },
+        {
+          "item": "Flat 202",
+          "amount": 3479.34
+        },
+        {
+          "item": "Flat 203",
+          "amount": 4327.16
+        },
+        {
+          "item": "Flat 204",
+          "amount": 3715.99
+        },
+        {
+          "item": "Flat 205",
+          "amount": 4681.39
+        },
+        {
+          "item": "Flat 206",
+          "amount": 5030.2
+        },
+        {
+          "item": "Flat 207",
+          "amount": 3635.22
+        },
+        {
+          "item": "Flat 208",
+          "amount": 3723.17
+        },
+        {
+          "item": "Flat 301",
+          "amount": 4096.93
+        },
+        {
+          "item": "Flat 302",
+          "amount": 3885.89
+        },
+        {
+          "item": "Flat 303",
+          "amount": 4978.88
+        },
+        {
+          "item": "Flat 304",
+          "amount": 3357.01
+        },
+        {
+          "item": "Flat 305",
+          "amount": 4820.99
+        },
+        {
+          "item": "Flat 306",
+          "amount": 4065.55
+        },
+        {
+          "item": "Flat 307",
+          "amount": 3700.72
+        },
+        {
+          "item": "Flat 308",
+          "amount": 4092.17
+        },
+        {
+          "item": "Flat 401",
+          "amount": 5502.67
+        },
+        {
+          "item": "Flat 402",
+          "amount": 4482.03
+        },
+        {
+          "item": "Flat 403",
+          "amount": 4120.21
+        },
+        {
+          "item": "Flat 404",
+          "amount": 4198.32
+        },
+        {
+          "item": "Flat 405",
+          "amount": 9626.13
+        },
+        {
+          "item": "Flat 406",
+          "amount": 4341.01
+        },
+        {
+          "item": "Flat 407",
+          "amount": 4049.78
+        },
+        {
+          "item": "Flat 408",
+          "amount": 5577.1
+        }
+      ],
       "transfers": []
     },
     {
@@ -9618,10 +9747,28 @@
           "actual": 2685.91,
           "previous_pending": 0,
           "total_payable": 2685.91,
-          "paid": 0,
-          "pending": 2685.91,
-          "mode": "Due",
-          "status": "Due"
+          "paid": 3685.91,
+          "pending": -1000,
+          "mode": "Online",
+          "status": "Advance",
+          "receipts": [
+            {
+              "id": "receipt_1794225393319_2hak7q",
+              "amount": 2685.91,
+              "mode": "Online",
+              "date": "2026-10-01",
+              "notes": ""
+            },
+            {
+              "id": "receipt_1794225434750_n7qwx7",
+              "amount": 1000,
+              "mode": "Online",
+              "date": "2026-10-01",
+              "notes": ""
+            }
+          ],
+          "payment_date": "2026-10-01",
+          "notes": ""
         },
         {
           "flat": 102,
@@ -9965,12 +10112,12 @@
       "cash_opening": -156.04,
       "bank_opening": 78156.04,
       "cash_total_in": 90414,
-      "bank_total_in": 0,
+      "bank_total_in": 3685.91,
       "cash_total_out": 0,
       "bank_total_out": 0,
       "cash_balance": 843.96,
-      "bank_balance": 78156.04,
-      "total_balance": 79000,
+      "bank_balance": 81841.95,
+      "total_balance": 82685.91,
       "dues_list": [],
       "opening_dues": {
         "207": 2095.8
@@ -22835,6 +22982,102 @@
         "inflow_id": "in_repay_1794046969049_b4ic27",
         "totalRepaid": 5500,
         "loanBalance": 4500
+      }
+    },
+    {
+      "id": "audit_1794225393328_585748",
+      "occurred_at": "2026-11-09T11:56:33.328Z",
+      "actor": "Local app user (client-side role)",
+      "month": "October 2026",
+      "action": "payment.updated",
+      "record_id": "101",
+      "before": {
+        "flat": 101,
+        "actual": 2685.91,
+        "previous_pending": 0,
+        "total_payable": 2685.91,
+        "paid": 0,
+        "pending": 2685.91,
+        "mode": "Due",
+        "status": "Due"
+      },
+      "after": {
+        "flat": 101,
+        "actual": 2685.91,
+        "previous_pending": 0,
+        "total_payable": 2685.91,
+        "paid": 2685.91,
+        "pending": 0,
+        "mode": "Online",
+        "status": "Paid",
+        "receipts": [
+          {
+            "id": "receipt_1794225393319_2hak7q",
+            "amount": 2685.91,
+            "mode": "Online",
+            "date": "2026-10-01",
+            "notes": ""
+          }
+        ],
+        "payment_date": "2026-10-01",
+        "notes": ""
+      }
+    },
+    {
+      "id": "audit_1794225434755_dlc4p4",
+      "occurred_at": "2026-11-09T11:57:14.755Z",
+      "actor": "Local app user (client-side role)",
+      "month": "October 2026",
+      "action": "payment.updated",
+      "record_id": "101",
+      "before": {
+        "flat": 101,
+        "actual": 2685.91,
+        "previous_pending": 0,
+        "total_payable": 2685.91,
+        "paid": 2685.91,
+        "pending": 0,
+        "mode": "Online",
+        "status": "Paid",
+        "receipts": [
+          {
+            "id": "receipt_1794225393319_2hak7q",
+            "amount": 2685.91,
+            "mode": "Online",
+            "date": "2026-10-01",
+            "notes": ""
+          }
+        ],
+        "payment_date": "2026-10-01",
+        "notes": ""
+      },
+      "after": {
+        "flat": 101,
+        "actual": 2685.91,
+        "previous_pending": 0,
+        "total_payable": 2685.91,
+        "paid": 3685.91,
+        "pending": -1000,
+        "mode": "Online",
+        "status": "Advance",
+        "receipts": [
+          {
+            "id": "receipt_1794225393319_2hak7q",
+            "amount": 2685.91,
+            "mode": "Online",
+            "date": "2026-10-01",
+            "notes": ""
+          },
+          {
+            "id": "receipt_1794225434750_n7qwx7",
+            "amount": 1000,
+            "mode": "Online",
+            "date": "2026-10-01",
+            "notes": ""
+          }
+        ],
+        "payment_date": "2026-10-01",
+        "notes": ""
       }
     }
   ],

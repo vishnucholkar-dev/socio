@@ -575,8 +575,8 @@ function cascadeFlatArrears(data: ApartmentData, flatNumber: number, fromMonth: 
     const newArrears = currentFlat.pending;
     nextFlat.previous_pending = newArrears;
     nextFlat.total_payable = money(nextFlat.actual + newArrears);
-    nextFlat.pending = money(Math.max(0, nextFlat.total_payable - nextFlat.paid));
-    nextFlat.status = nextFlat.pending <= 1 ? 'Paid' : (nextFlat.paid > 0 ? 'Partial' : 'Due');
+    nextFlat.pending = money(nextFlat.total_payable - nextFlat.paid);
+    nextFlat.status = nextFlat.pending < -1 ? 'Advance' : (nextFlat.pending <= 1 ? 'Paid' : (nextFlat.paid > 0 ? 'Partial' : 'Due'));
 
     if (nextW) {
       const waterFlat = nextW.flats.find(f => f.flat === flatNumber);
@@ -615,7 +615,7 @@ export function resetFlatPaymentToDue(monthSheet: string, flatNumber: number, re
   flat.receipts = [];
   flat.pending = payable;
   flat.mode = 'Due';
-  flat.status = 'Due';
+  flat.status = flat.pending < -1 ? 'Advance' : (flat.pending <= 1 ? 'Paid' : 'Due');
   delete flat.payment_date;
 
   cascadeFlatArrears(data, flatNumber, monthSheet);
@@ -643,8 +643,6 @@ export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAm
   if (!flat) throw new Error(`Flat ${flatNumber} is not present in ${monthSheet}.`);
   const payable = flat.total_payable ?? (flat.actual + (flat.previous_pending || 0));
   const currentPaid = money(flat.paid || 0);
-  const currentPending = money(flat.pending ?? Math.max(0, payable - currentPaid));
-  if (paidAmount > currentPending + 0.01) throw new Error('Payment cannot exceed the flat’s outstanding balance.');
   const before = { ...flat };
   const receipts = flat.receipts ? [...flat.receipts] : currentPaid > 0
     ? [{ id: makeId('legacy-receipt'), amount: currentPaid, mode: (flat.mode === 'Cash' ? 'Cash' : flat.mode === 'Bank' ? 'Bank' : 'Online') as PaymentChannel }]
@@ -655,9 +653,9 @@ export function recordFlatPayment(monthSheet: string, flatNumber: number, paidAm
   if (paidAmount > 0) receipts.push({ id: makeId('receipt'), amount: money(paidAmount), mode, date: effectiveDate, ...(notes !== undefined ? { notes } : {}) });
   flat.receipts = receipts;
   flat.paid = money(currentPaid + paidAmount);
-  flat.pending = money(Math.max(0, payable - flat.paid));
+  flat.pending = money(payable - flat.paid);
   flat.mode = flat.paid === 0 ? 'Due' : mode;
-  flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
+  flat.status = flat.pending < -1 ? 'Advance' : (flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due'));
   if (paidAmount > 0) flat.payment_date = effectiveDate;
   if (notes !== undefined) flat.notes = notes;
 
@@ -1030,8 +1028,8 @@ export function saveSingleFlatWaterReading(
       if (!mf) continue;
       mf.actual = money(wf.actual_amount);
       mf.total_payable = money(mf.actual + (mf.previous_pending || 0));
-      mf.pending = money(Math.max(0, mf.total_payable - mf.paid));
-      mf.status = mf.pending <= 1 ? 'Paid' : (mf.paid > 0 ? 'Partial' : 'Due');
+      mf.pending = money(mf.total_payable - mf.paid);
+      mf.status = mf.pending < -1 ? 'Advance' : (mf.pending <= 1 ? 'Paid' : (mf.paid > 0 ? 'Partial' : 'Due'));
     }
     m.dues_list = m.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
   }
@@ -1070,16 +1068,6 @@ export function saveWaterStatement(statement: WaterStatement): ApartmentData {
   const before = index >= 0 ? data.water_statements[index] : null;
   const updated: WaterStatement = { ...statement, readings_complete: true };
   const maintenance = maintenanceMatches[0];
-  if (maintenance) {
-    for (const waterFlat of updated.flats) {
-      const flat = maintenance.flats.find(item => item.flat === waterFlat.flat);
-      if (!flat) continue;
-      const payable = money(waterFlat.actual_amount + (flat.previous_pending || 0));
-      if (flat.paid > payable + 0.01) {
-        throw new Error(`Flat ${flat.flat} has already paid more than the revised total payable. Resolve the overpayment before saving this water bill; no credit ledger is available.`);
-      }
-    }
-  }
   if (index >= 0) data.water_statements[index] = updated;
   else data.water_statements.push(updated);
   if (maintenance) {
@@ -1088,8 +1076,8 @@ export function saveWaterStatement(statement: WaterStatement): ApartmentData {
       if (!flat) continue;
       flat.actual = money(waterFlat.actual_amount);
       flat.total_payable = money(flat.actual + (flat.previous_pending || 0));
-      flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
-      flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
+      flat.pending = money(flat.total_payable - flat.paid);
+      flat.status = flat.pending < -1 ? 'Advance' : (flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due'));
     }
     maintenance.dues_list = maintenance.flats.filter(flat => flat.pending > 1).map(flat => ({ item: `Flat ${flat.flat}`, amount: flat.pending }));
   }
@@ -1130,13 +1118,13 @@ function validateLedgerForClose(data: ApartmentData, month: string, m: Maintenan
     if (seen.has(flat.flat)) problems.push(`Flat ${flat.flat} has duplicate maintenance rows.`);
     seen.add(flat.flat);
     if (!data.flats.includes(flat.flat)) problems.push(`Flat ${flat.flat} is not in the configured apartment list.`);
-    for (const [label, value] of [['billed amount', flat.actual], ['paid amount', flat.paid], ['pending amount', flat.pending]] as const) {
-      if (!finite(value) || value < 0) problems.push(`Flat ${flat.flat} has an invalid ${label}.`);
-    }
+    if (!finite(flat.actual) || flat.actual < 0) problems.push(`Flat ${flat.flat} has an invalid billed amount.`);
+    if (!finite(flat.paid) || flat.paid < 0) problems.push(`Flat ${flat.flat} has an invalid paid amount.`);
+    if (!finite(flat.pending)) problems.push(`Flat ${flat.flat} has an invalid pending amount.`);
+
     const payable = flat.total_payable ?? (flat.actual + (flat.previous_pending || 0));
-    if (!finite(payable) || payable < 0) problems.push(`Flat ${flat.flat} has an invalid total payable amount.`);
-    else if (finite(flat.paid) && flat.paid > payable + 0.01) problems.push(`Flat ${flat.flat} has an overpayment that cannot be carried as credit.`);
-    else if (finite(flat.paid) && finite(flat.pending) && Math.abs(flat.pending - money(Math.max(0, payable - flat.paid))) > 0.01) {
+    if (!finite(payable)) problems.push(`Flat ${flat.flat} has an invalid total payable amount.`);
+    else if (finite(flat.paid) && finite(flat.pending) && Math.abs(flat.pending - money(payable - flat.paid)) > 0.01) {
       problems.push(`Flat ${flat.flat} pending dues do not reconcile to total payable less payments.`);
     }
     if ((flat.paid || 0) > 0 && !['Cash', 'Online', 'Bank'].includes(flat.mode)) problems.push(`Flat ${flat.flat} has an unsupported payment channel.`);
@@ -1248,8 +1236,8 @@ function performRollover(data: ApartmentData, previousMonth: string, nextMonth: 
       const arrears = dues[flat.flat] || 0;
       flat.previous_pending = arrears;
       flat.total_payable = money(flat.actual + arrears);
-      flat.pending = money(Math.max(0, flat.total_payable - flat.paid));
-      flat.status = flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due');
+      flat.pending = money(flat.total_payable - flat.paid);
+      flat.status = flat.pending < -1 ? 'Advance' : (flat.pending <= 1 ? 'Paid' : (flat.paid > 0 ? 'Partial' : 'Due'));
     }
     nextMaint.dues_list = nextMaint.flats.filter(f => f.pending > 1).map(f => ({ item: `Flat ${f.flat}`, amount: f.pending }));
 
@@ -1267,7 +1255,16 @@ function performRollover(data: ApartmentData, previousMonth: string, nextMonth: 
     const config = data.billing_config_history[data.billing_config_history.length - 1];
     const nextFlats = data.flats.map(flatNumber => {
       const arrears = dues[flatNumber] || 0;
-      return { flat: flatNumber, actual: 0, previous_pending: arrears, total_payable: arrears, paid: 0, pending: arrears, mode: 'Due' as const, status: arrears > 0 ? ('Due' as const) : ('Paid' as const) };
+      return {
+        flat: flatNumber,
+        actual: 0,
+        previous_pending: arrears,
+        total_payable: arrears,
+        paid: 0,
+        pending: arrears,
+        mode: (arrears <= 1 ? 'Paid' : 'Due') as any,
+        status: (arrears < -1 ? 'Advance' : (arrears > 1 ? 'Due' : 'Paid')) as any
+      };
     });
     const newMaintenance: MaintenanceStatement = {
       sheet_name: nextMonth,

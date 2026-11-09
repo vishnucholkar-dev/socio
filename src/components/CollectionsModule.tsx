@@ -51,7 +51,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   const canEdit = cycleStatus === 'open' && currentRole !== 'user' && matchingStatements.length === 1;
 
   const [filterFloor, setFilterFloor] = useState<number | 'all'>('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'Paid' | 'Due'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'Paid' | 'Due' | 'Advance'>('all');
   const [sortSequence, setSortSequence] = useState<'riser' | 'ascending'>('riser');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -80,8 +80,9 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   const filteredFlats = sortFlatsBySequence(currentStatement.flats.filter(f => {
     const floor = Math.floor(f.flat / 100);
     if (filterFloor !== 'all' && floor !== filterFloor) return false;
-    if (filterStatus === 'Paid' && f.pending > 1) return false;
+    if (filterStatus === 'Paid' && (f.pending > 1 || f.pending < -1)) return false;
     if (filterStatus === 'Due' && f.pending <= 1) return false;
+    if (filterStatus === 'Advance' && f.pending >= -1) return false;
     if (searchQuery && !f.flat.toString().includes(searchQuery)) return false;
     return true;
   }), sortSequence);
@@ -89,16 +90,19 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   // Calculate totals
   const totalBilled = currentStatement.flats.reduce((acc, f) => acc + (f.actual || 0), 0);
   const totalCollected = currentStatement.flats.reduce((acc, f) => acc + (f.paid || 0), 0);
-  const totalPending = currentStatement.flats.reduce((acc, f) => acc + (f.pending || 0), 0);
-  const paidCount = currentStatement.flats.filter(f => f.pending <= 1).length;
+  const totalPending = currentStatement.flats.filter(f => f.pending > 0).reduce((acc, f) => acc + f.pending, 0);
+  const totalAdvance = currentStatement.flats.filter(f => f.pending < 0).reduce((acc, f) => acc + Math.abs(f.pending), 0);
+  const paidCount = currentStatement.flats.filter(f => f.pending <= 1 && f.pending >= -1).length;
+  const duesCount = currentStatement.flats.filter(f => f.pending > 1).length;
+  const advanceCount = currentStatement.flats.filter(f => f.pending < -1).length;
 
   const handleOpenPayment = (flat: FlatMaintenanceData) => {
     setActivePaymentFlat(flat);
     const initialCycle = (openCycles && openCycles.includes(selectedMonth)) ? selectedMonth : (openCycles?.[0] || selectedMonth);
     setPaymentCycle(initialCycle);
     setPaymentDate(getFirstOfMonth(initialCycle));
-    setPayAmount(flat.pending > 0 ? flat.pending : 0);
-    setPayMode(flat.mode === 'Due' ? 'Online' : flat.mode);
+    setPayAmount(flat.pending > 0 ? flat.pending : 1000);
+    setPayMode(flat.mode === 'Due' ? 'Online' : (flat.mode || 'Online'));
     setPayNotes(flat.notes || '');
   };
 
@@ -158,7 +162,10 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
             </span>
           </div>
           <p className="text-2xl font-bold text-rose-600 mt-2">{formatINR(totalPending)}</p>
-          <p className="text-xs text-slate-400 mt-1">{32 - paidCount} flats pending</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {duesCount} flats pending
+            {totalAdvance > 0 && <span className="text-emerald-700 font-bold block mt-0.5">• {formatINR(totalAdvance)} Advance Credit ({advanceCount})</span>}
+          </p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -234,6 +241,7 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
             <option value="all">All Statuses</option>
             <option value="Paid">Paid Only</option>
             <option value="Due">Pending Dues Only</option>
+            <option value="Advance">Advance Credit Only</option>
           </select>
 
           {/* Search */}
@@ -280,14 +288,16 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          isPaid
+                          flat.pending < -1
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                            : isPaid
                             ? 'bg-emerald-100 text-emerald-800'
                             : flat.paid > 0
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-rose-100 text-rose-800'
                         }`}
                       >
-                        {isPaid ? 'Paid' : flat.paid > 0 ? 'Partial' : 'Due'}
+                        {flat.pending < -1 ? 'Advance' : isPaid ? 'Paid' : flat.paid > 0 ? 'Partial' : 'Due'}
                       </span>
                     </div>
 
@@ -309,9 +319,11 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                         <span className="font-semibold text-emerald-600 font-mono">{formatINR(flat.paid)}</span>
                       </div>
                       <div className="flex justify-between text-slate-500 pt-1 border-t border-slate-100">
-                        <span className="font-medium text-slate-700">Pending:</span>
-                        <span className={`font-bold font-mono ${flat.pending > 1 ? 'text-rose-600' : 'text-slate-400'}`}>
-                          {formatINR(flat.pending)}
+                        <span className="font-medium text-slate-700">
+                          {flat.pending < -1 ? 'Advance Credit:' : 'Pending Dues:'}
+                        </span>
+                        <span className={`font-bold font-mono ${flat.pending > 1 ? 'text-rose-600' : flat.pending < -1 ? 'text-blue-700' : 'text-slate-400'}`}>
+                          {flat.pending < -1 ? `-${formatINR(Math.abs(flat.pending))}` : formatINR(flat.pending)}
                         </span>
                       </div>
                       <div className="flex justify-between text-[11px] text-slate-400">
@@ -333,13 +345,17 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                   <span>Receipt</span>
                 </button>
 
-                {canEdit && !isPaid && (
+                {canEdit && (
                   <button
                     onClick={() => handleOpenPayment(flat)}
-                    className="flex-1 flex items-center justify-center space-x-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold rounded-lg shadow-sm transition-colors"
+                    className={`flex-1 flex items-center justify-center space-x-1 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm transition-colors ${
+                      isPaid
+                        ? 'bg-slate-800 hover:bg-slate-900 text-white'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                    }`}
                   >
                     <DollarSign size={13} />
-                    <span>Pay</span>
+                    <span>{isPaid ? '+ Advance' : 'Pay'}</span>
                   </button>
                 )}
 
@@ -399,15 +415,44 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Payment Amount (₹)</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">Payment Amount (₹)</label>
+                  {activePaymentFlat.pending > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setPayAmount(activePaymentFlat.pending)}
+                      className="text-[10px] text-blue-600 font-bold hover:underline"
+                    >
+                      Fill Exact Due ({formatINR(activePaymentFlat.pending)})
+                    </button>
+                  )}
+                </div>
                 <input
                   type="number"
                   step="any"
-                  value={payAmount}
+                  min="1"
+                  value={payAmount || ''}
                   onChange={(e) => setPayAmount(Number(e.target.value))}
                   required
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
+                {(() => {
+                  const payable = activePaymentFlat.total_payable ?? (activePaymentFlat.actual + (activePaymentFlat.previous_pending || 0));
+                  const newPaid = (activePaymentFlat.paid || 0) + payAmount;
+                  const newBalance = payable - newPaid;
+                  if (newBalance < -1) {
+                    return (
+                      <div className="mt-1.5 p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 font-medium">
+                        ✓ <strong>Advance Payment</strong>: {formatINR(Math.abs(newBalance))} will be credited to Flat {activePaymentFlat.flat} and carried forward to automatically reduce next month's bill!
+                      </div>
+                    );
+                  }
+                  return (
+                    <span className="text-[10px] text-slate-400 mt-1 block">
+                      Amounts greater than the bill will be recorded as advance credit for future months.
+                    </span>
+                  );
+                })()}
               </div>
 
               <div>
@@ -558,9 +603,11 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                           <td className="py-2 text-right font-mono font-bold text-emerald-700">{formatINR(receiptFlat.paid)}</td>
                         </tr>
                         <tr className="border-t-2 border-slate-800 font-black">
-                          <td className="py-2.5 text-slate-900">Balance Pending Due</td>
-                          <td className={`py-2.5 text-right font-mono ${receiptFlat.pending > 1 ? 'text-rose-600' : 'text-slate-900'}`}>
-                            {formatINR(receiptFlat.pending)}
+                          <td className="py-2.5 text-slate-900">
+                            {receiptFlat.pending < -1 ? 'Advance Balance (Credit)' : 'Balance Pending Due'}
+                          </td>
+                          <td className={`py-2.5 text-right font-mono ${receiptFlat.pending > 1 ? 'text-rose-600' : receiptFlat.pending < -1 ? 'text-blue-700' : 'text-slate-900'}`}>
+                            {receiptFlat.pending < -1 ? `-${formatINR(Math.abs(receiptFlat.pending))}` : formatINR(receiptFlat.pending)}
                           </td>
                         </tr>
                       </tbody>
@@ -594,9 +641,13 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
                 )}
               </div>
               <div className={`px-3 py-1 rounded-lg font-black text-xs uppercase tracking-wider ${
-                receiptFlat.pending <= 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                receiptFlat.pending < -1
+                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                  : receiptFlat.pending <= 1
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-rose-100 text-rose-800'
               }`}>
-                {receiptFlat.pending <= 1 ? 'PAID & CLEARED' : 'PAYMENT DUE'}
+                {receiptFlat.pending < -1 ? 'ADVANCE CREDIT' : receiptFlat.pending <= 1 ? 'PAID & CLEARED' : 'PAYMENT DUE'}
               </div>
             </div>
 
