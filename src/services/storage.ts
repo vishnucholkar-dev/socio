@@ -79,45 +79,7 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
   if (!Array.isArray(data.maintenance_statements)) { data.maintenance_statements = []; changed = true; }
   if (!Array.isArray(data.water_statements)) { data.water_statements = []; changed = true; }
   if (!Array.isArray(data.staff_loans)) {
-    data.staff_loans = [
-      {
-        id: 'loan_laxman_watchman',
-        borrower_name: 'Laxman (Watchman)',
-        designation: 'Building Watchman',
-        principal_amount: 10000,
-        disbursed_date: '2026-07-15',
-        disbursed_channel: 'Cash',
-        disbursed_month_sheet: 'July 2026',
-        notes: 'Personal emergency staff advance',
-        status: 'Active',
-        repayments: [
-          {
-            id: 'repay_jul_2026',
-            amount: 1500,
-            date: '2026-07-31',
-            channel: 'Cash',
-            monthSheet: 'July 2026',
-            notes: 'Monthly advance recovery'
-          },
-          {
-            id: 'repay_aug_2026',
-            amount: 1500,
-            date: '2026-08-31',
-            channel: 'Cash',
-            monthSheet: 'August 2026',
-            notes: 'Monthly advance recovery'
-          },
-          {
-            id: 'repay_sep_2026',
-            amount: 1500,
-            date: '2026-09-30',
-            channel: 'Cash',
-            monthSheet: 'September 2026',
-            notes: 'Monthly advance recovery'
-          }
-        ]
-      }
-    ];
+    data.staff_loans = [];
     changed = true;
   }
   // Empty arrays are intentional user data (e.g. all contacts deleted), never replace them with defaults.
