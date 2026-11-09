@@ -3,7 +3,7 @@ import type {
   DirectoryContact, ExpenseItem, InflowItem, MaintenanceStatement, PaymentChannel, PaymentMode, WaterStatement,
   StaffLoan, LoanRepayment
 } from '../types/apartment';
-import { calculateWaterBilling } from './calculations';
+import { calculateWaterBilling, computeDynamicStatementBalances } from './calculations';
 import seedData from '../data/apartment_seed.json';
 import { DEFAULT_CONTACTS } from '../data/default_contacts';
 import { DEFAULT_BILLING_CONFIG_HISTORY } from '../data/default_config';
@@ -164,6 +164,14 @@ function normalizeData(input: ApartmentData): { data: ApartmentData; changed: bo
     if (!Array.isArray(statement.inflows)) { statement.inflows = []; changed = true; }
     if (!Array.isArray(statement.transfers)) { statement.transfers = []; changed = true; }
     if (!Array.isArray(statement.dues_list)) { statement.dues_list = []; changed = true; }
+
+    if (statement.bank_balance === undefined || statement.bank_balance === null) {
+      const dynamic = computeDynamicStatementBalances(statement);
+      statement.bank_balance = dynamic.closingBank;
+      statement.cash_balance = dynamic.closingCash;
+      statement.total_balance = dynamic.totalLiquidFunds;
+      changed = true;
+    }
   }
 
   // Self-healing: Ensure all verified historical society statements maintain their verified baseline numbers
