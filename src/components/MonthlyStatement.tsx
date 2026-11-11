@@ -478,11 +478,15 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
           {/* Collection Metrics Summary Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Billed</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Bill</span>
               <p className="text-base font-black text-slate-900 font-mono mt-0.5">
-                {formatINR(currentMaint.flats.reduce((sum, f) => sum + (f.actual || 0), 0))}
+                {formatINR(currentMaint.flats.reduce((sum, f) => sum + (f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0))), 0))}
               </p>
-              <span className="text-[10px] text-slate-400">32 Flats Combined</span>
+              <span className="text-[10px] text-slate-400">
+                {currentMaint.flats.some(f => (f.previous_pending || 0) > 0)
+                  ? `Includes ${formatINR(currentMaint.flats.reduce((sum, f) => sum + Math.max(0, f.previous_pending || 0), 0))} prior arrears`
+                  : '32 Flats Combined'}
+              </span>
             </div>
 
             <div className="bg-white p-3 rounded-2xl border border-emerald-200 bg-emerald-50/30 shadow-2xs">
@@ -529,9 +533,11 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {sortedAndFiltered.map((f) => {
                   const isPaid = f.pending <= 1;
-                  const roundedBill = Math.round(f.actual || 0);
+                  const totalBill = Math.round(f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0)));
+                  const roundedActual = Math.round(f.actual || 0);
                   const roundedPaid = Math.round(f.paid || 0);
                   const roundedPending = Math.round(f.pending || 0);
+                  const hasArrears = (f.previous_pending || 0) > 0;
 
                   return (
                     <div
@@ -546,12 +552,14 @@ export const MonthlyStatement: React.FC<MonthlyStatementProps> = ({
                     >
                       <div>
                         <span className="font-black text-slate-900 block">Flat {f.flat}</span>
-                        <span className="text-[10px] text-slate-500 font-mono block">
-                          Bill: {formatINR(roundedBill)}
-                          {(f.previous_pending || 0) > 0 && (
-                            <span className="text-rose-600 font-bold ml-1">+{formatINR(Math.round(f.previous_pending))} arr</span>
-                          )}
+                        <span className="text-[10px] text-slate-600 font-mono block font-medium">
+                          Total Bill: {formatINR(totalBill)}
                         </span>
+                        {hasArrears && (
+                          <span className="text-[9px] text-slate-400 font-mono block">
+                            ({formatINR(roundedActual)} + {formatINR(Math.round(f.previous_pending))} arr)
+                          </span>
+                        )}
                         {roundedPaid > 0 && f.pending > 1 && (
                           <span className="text-[10px] text-emerald-700 font-mono font-bold block">
                             Paid: {formatINR(roundedPaid)}

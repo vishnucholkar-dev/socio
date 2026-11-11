@@ -88,7 +88,9 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
   }), sortSequence);
 
   // Calculate totals
-  const totalBilled = currentStatement.flats.reduce((acc, f) => acc + (f.actual || 0), 0);
+  const totalBilled = currentStatement.flats.reduce((acc, f) => acc + (f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0))), 0);
+  const totalMonthActual = currentStatement.flats.reduce((acc, f) => acc + (f.actual || 0), 0);
+  const totalPriorArrears = currentStatement.flats.reduce((acc, f) => acc + Math.max(0, f.previous_pending || 0), 0);
   const totalCollected = currentStatement.flats.reduce((acc, f) => acc + (f.paid || 0), 0);
   const totalPending = currentStatement.flats.filter(f => f.pending > 0).reduce((acc, f) => acc + f.pending, 0);
   const totalAdvance = currentStatement.flats.filter(f => f.pending < 0).reduce((acc, f) => acc + Math.abs(f.pending), 0);
@@ -134,13 +136,15 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase">Total Billed</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase">Total Bill</span>
             <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
               <Receipt size={18} />
             </span>
           </div>
           <p className="text-2xl font-bold text-slate-900 mt-2">{formatINR(totalBilled)}</p>
-          <p className="text-xs text-slate-400 mt-1">32 Flats Maintenance</p>
+          <p className="text-xs text-slate-400 mt-1">
+            {totalPriorArrears > 0 ? `${formatINR(totalMonthActual)} + ${formatINR(totalPriorArrears)} arrears` : '32 Flats Combined'}
+          </p>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -303,17 +307,28 @@ export const CollectionsModule: React.FC<CollectionsModuleProps> = ({
 
                     {/* Amount Breakdown */}
                     <div className="mt-3 space-y-1.5 text-xs">
-                      <div className="flex justify-between items-baseline text-slate-500">
-                        <span>Actual Bill:</span>
-                        <div className="text-right">
-                          <span className="font-bold text-slate-900 font-mono text-sm">{formatINR(flat.actual)}</span>
-                          {waterCost > 0 && (
-                            <span className="block text-[10px] text-slate-400 font-normal">
-                              ₹{baseMaint.toLocaleString('en-IN')} base + {formatINR(waterCost)} water
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      {(() => {
+                        const flatTotalBill = flat.total_payable ?? (flat.actual + (flat.previous_pending || 0));
+                        const hasArrearsOrAdv = (flat.previous_pending || 0) !== 0;
+
+                        return (
+                          <div className="flex justify-between items-baseline text-slate-700">
+                            <span className="font-semibold text-slate-700">Total Bill:</span>
+                            <div className="text-right">
+                              <span className="font-bold text-slate-900 font-mono text-sm">{formatINR(flatTotalBill)}</span>
+                              {hasArrearsOrAdv ? (
+                                <span className="block text-[10px] text-slate-500 font-normal font-mono">
+                                  {formatINR(flat.actual)} month {(flat.previous_pending || 0) > 0 ? `+ ${formatINR(flat.previous_pending)} arr` : `- ${formatINR(Math.abs(flat.previous_pending))} adv`}
+                                </span>
+                              ) : waterCost > 0 ? (
+                                <span className="block text-[10px] text-slate-400 font-normal">
+                                  ₹{baseMaint.toLocaleString('en-IN')} base + {formatINR(waterCost)} water
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })()}
                       <div className="flex justify-between text-slate-500">
                         <span>Paid:</span>
                         <span className="font-semibold text-emerald-600 font-mono">{formatINR(flat.paid)}</span>

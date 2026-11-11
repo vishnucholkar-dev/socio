@@ -23,7 +23,7 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
   const dynamic = computeDynamicStatementBalances(statement);
 
   // Compute metrics
-  const totalBilled = statement.flats.reduce((sum, f) => sum + (f.actual || 0), 0);
+  const totalBilled = statement.flats.reduce((sum, f) => sum + (f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0))), 0);
   const totalFlatPaid = statement.flats.reduce((sum, f) => sum + (f.paid || 0), 0);
   const totalFlatPending = statement.flats.reduce((sum, f) => sum + (f.pending || 0), 0);
   const paidCount = statement.flats.filter(f => f.pending <= 1).length;
@@ -162,16 +162,19 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
       <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 3.5px;">
         ${sortedFlats.map(f => {
           const isPaid = f.pending <= 1;
-          const roundedBill = Math.round(f.actual || 0);
+          const totalBill = Math.round(f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0)));
+          const roundedActual = Math.round(f.actual || 0);
           const roundedPaid = Math.round(f.paid || 0);
           const roundedPending = Math.round(f.pending || 0);
+          const hasArrears = (f.previous_pending || 0) > 0;
           return `
             <div style="border: 1px solid ${isPaid ? '#a7f3d0' : f.paid > 0 ? '#fde68a' : '#fca5a5'}; background: #ffffff; padding: 2.5px 4.5px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 6.5pt;">
               <div>
                 <strong style="color: #0f172a; display: block;">Flat ${f.flat}</strong>
-                <span style="font-family: monospace; color: #64748b; font-size: 5.6pt;">
-                  Bill: ₹${roundedBill.toLocaleString('en-IN')}${(f.previous_pending || 0) > 0 ? ` +₹${Math.round(f.previous_pending).toLocaleString('en-IN')} arr` : ''}
+                <span style="font-family: monospace; color: #475569; font-weight: 600; font-size: 5.6pt;">
+                  Total Bill: ₹${totalBill.toLocaleString('en-IN')}
                 </span>
+                ${hasArrears ? `<span style="font-family: monospace; color: #94a3b8; font-size: 5.2pt; display: block;">(₹${roundedActual.toLocaleString('en-IN')} + ₹${Math.round(f.previous_pending).toLocaleString('en-IN')} arr)</span>` : ''}
                 ${roundedPaid > 0 && f.pending > 1 ? `<span style="font-family: monospace; color: #047857; font-weight: 700; font-size: 5.6pt; display: block;">Paid: ₹${roundedPaid.toLocaleString('en-IN')}</span>` : ''}
               </div>
               <div style="text-align: right;">
@@ -924,9 +927,11 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             {sortedFlats.map((f) => {
               const isPaid = f.pending <= 1;
-              const roundedBill = Math.round(f.actual || 0);
+              const totalBill = Math.round(f.total_payable ?? ((f.actual || 0) + (f.previous_pending || 0)));
+              const roundedActual = Math.round(f.actual || 0);
               const roundedPaid = Math.round(f.paid || 0);
               const roundedPending = Math.round(f.pending || 0);
+              const hasArrears = (f.previous_pending || 0) > 0;
 
               return (
                 <div
@@ -941,12 +946,14 @@ export const MonthlyStatementPdfExport: React.FC<MonthlyStatementPdfExportProps>
                 >
                   <div>
                     <span className="font-black text-slate-900 block">Flat {f.flat}</span>
-                    <span className="text-[10px] text-slate-500 font-mono block">
-                      Bill: {formatINR(roundedBill)}
-                      {(f.previous_pending || 0) > 0 && (
-                        <span className="text-rose-600 font-bold ml-1">+{formatINR(Math.round(f.previous_pending))} arr</span>
-                      )}
+                    <span className="text-[10px] text-slate-600 font-mono block font-medium">
+                      Total Bill: {formatINR(totalBill)}
                     </span>
+                    {hasArrears && (
+                      <span className="text-[9px] text-slate-400 font-mono block">
+                        ({formatINR(roundedActual)} + {formatINR(Math.round(f.previous_pending))} arr)
+                      </span>
+                    )}
                     {roundedPaid > 0 && f.pending > 1 && (
                       <span className="text-[10px] text-emerald-700 font-mono font-bold block">
                         Paid: {formatINR(roundedPaid)}
